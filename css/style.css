@@ -672,58 +672,7 @@ section { padding: 56px 0; }
 .reserve-card.is-done form { display: none; }
 .reserve-card.is-done .reserve-done { display: block; }
 
-/* ---------- Admin ---------- */
 [hidden] { display: none !important; }
-.admin-user { display: flex; align-items: center; gap: 12px; font-size: 0.9rem; color: var(--ink-soft); }
-.admin-btn-sm { padding: 6px 14px; font-size: 0.9rem; cursor: pointer; font-family: inherit; }
-.admin-login { max-width: 420px; text-align: center; }
-.admin-login form { text-align: left; }
-.admin-login__logo { width: 240px; height: auto; margin: 0 auto 20px; }
-.admin-login h1 { font-size: 1.5rem; }
-.field input[type="password"] {
-  width: 100%; font: inherit; font-size: 1rem; color: var(--ink); background: var(--bg);
-  border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 12px 14px;
-}
-.admin-main { padding-top: 32px; padding-bottom: 72px; }
-.admin-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-.admin-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
-.admin-tabs button {
-  font: inherit; font-size: 0.95rem; padding: 8px 16px; border-radius: 999px;
-  border: 1px solid var(--border); background: var(--surface); color: var(--ink); cursor: pointer;
-}
-.admin-tabs button.is-active { background: var(--ink); color: #fff; border-color: var(--ink); }
-.admin-tabs .count { opacity: 0.7; margin-left: 2px; }
-.admin-empty { text-align: center; color: var(--ink-faint); padding: 48px 0; }
-
-.booking-list { display: grid; gap: 12px; }
-.booking {
-  background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--border);
-  border-radius: var(--radius-sm); padding: 18px 20px;
-}
-.booking--new { border-left-color: var(--c-acceptance); }
-.booking--contacted { border-left-color: var(--c-connect); }
-.booking--confirmed { border-left-color: var(--c-strength); }
-.booking--cancelled { opacity: 0.65; }
-.booking__head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-.booking__name { font-size: 1.1rem; }
-.booking__tag {
-  display: inline-block; margin-left: 8px; font-size: 0.78rem; padding: 2px 8px;
-  border-radius: 999px; background: var(--surface-alt); color: var(--ink-soft); vertical-align: 2px;
-}
-.booking__status { font: inherit; font-size: 0.9rem; padding: 6px 10px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); }
-.booking__meta { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: 0.95rem; color: var(--ink-soft); }
-.booking__received { color: var(--ink-faint); }
-.booking__msg { margin: 10px 0 0; padding: 10px 12px; background: var(--bg); border-radius: var(--radius-sm); font-size: 0.95rem; white-space: pre-wrap; }
-.booking__note { display: block; margin-top: 12px; font-size: 0.85rem; color: var(--ink-faint); }
-.booking__note textarea {
-  display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 0.95rem; color: var(--ink);
-  border: 1px solid var(--border-soft); border-radius: var(--radius-sm); padding: 8px 10px; background: var(--bg); resize: vertical;
-}
-.booking__saved { font-size: 0.8rem; color: var(--ink-faint); min-height: 1.2em; margin-top: 4px; }
-@media (max-width: 640px) {
-  .admin-user span { display: none; }
-  .booking { padding: 14px; }
-}
 
 /* ---------- Clinic site ---------- */
 .clinic-home { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; }

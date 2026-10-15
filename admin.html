@@ -8,73 +8,196 @@
 <link rel="icon" type="image/png" sizes="512x512" href="images/favicon-512.png">
 <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
 <meta name="robots" content="noindex, nofollow">
-<title>예약 관리 | 채정호 정신건강의학과의원</title>
+<title>예약 관리 | 스펙트럼 채정호 정신건강의학과의원</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Hahmlet:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/style.css">
+<link rel="stylesheet" href="css/admin.css">
 </head>
 <body class="admin">
 
-<header class="site-header">
-  <div class="site-header__inner">
-    <a href="admin.html" class="brand">
-      <span class="brand__ko">예약 관리</span>
-      <span class="brand__en">Staff only</span>
-    </a>
-    <div class="admin-user" id="admin-user" hidden>
-      <span id="admin-email"></span>
-      <button type="button" class="btn btn--outline admin-btn-sm" id="logout">로그아웃</button>
-    </div>
+<header class="admin-top">
+  <a href="admin.html" class="admin-top__brand">
+    <img src="images/favicon-512.png" alt="" width="36" height="36">
+    <span>예약 관리</span>
+  </a>
+  <div class="admin-top__user" id="admin-user" hidden>
+    <span id="admin-email"></span>
+    <button type="button" class="a-btn a-btn--ghost" id="logout">로그아웃</button>
   </div>
 </header>
 
-<main>
-  <!-- Sign in -->
-  <section class="container" id="login-view" hidden>
-    <div class="reserve-card admin-login">
-      <img src="images/clinic-logo.svg" alt="스펙트럼 채정호 정신건강의학과의원" class="admin-login__logo" width="2015" height="553">
-      <h1>직원 로그인</h1>
-      <form id="login-form" novalidate>
-        <div class="form-error" id="login-error" role="alert"></div>
-        <div class="field">
-          <label for="email">이메일</label>
-          <input type="text" id="email" inputmode="email" autocomplete="username" required>
-        </div>
-        <div class="field">
-          <label for="password">비밀번호</label>
-          <input type="password" id="password" autocomplete="current-password" required>
-        </div>
-        <button type="submit" class="btn btn--primary reserve-submit" id="login-submit">로그인</button>
-      </form>
-    </div>
-  </section>
-
-  <!-- Signed in but not on the staff list -->
-  <section class="container" id="denied-view" hidden>
-    <div class="reserve-card" style="text-align: center;">
-      <h2>접근 권한이 없습니다</h2>
-      <p>이 계정은 직원으로 등록되어 있지 않습니다. 관리자에게 등록을 요청해 주세요.</p>
-    </div>
-  </section>
-
-  <!-- Bookings -->
-  <section class="container admin-main" id="list-view" hidden>
-    <div class="admin-toolbar">
-      <div class="admin-tabs" role="tablist">
-        <button type="button" data-filter="new" class="is-active">신규 <span class="count" data-count="new"></span></button>
-        <button type="button" data-filter="contacted">연락함 <span class="count" data-count="contacted"></span></button>
-        <button type="button" data-filter="confirmed">확정 <span class="count" data-count="confirmed"></span></button>
-        <button type="button" data-filter="cancelled">취소 <span class="count" data-count="cancelled"></span></button>
-        <button type="button" data-filter="all">전체 <span class="count" data-count="all"></span></button>
+<!-- Sign in -->
+<section id="login-view" class="admin-center" hidden>
+  <div class="reserve-card admin-login">
+    <img src="images/clinic-logo.svg" alt="스펙트럼 채정호 정신건강의학과의원" class="admin-login__logo" width="2015" height="553">
+    <h1>직원 로그인</h1>
+    <form id="login-form" novalidate>
+      <div class="form-error" id="login-error" role="alert"></div>
+      <div class="field">
+        <label for="email">이메일</label>
+        <input type="text" id="email" inputmode="email" autocomplete="username" required>
       </div>
-      <button type="button" class="btn btn--outline admin-btn-sm" id="refresh">새로고침</button>
+      <div class="field">
+        <label for="password">비밀번호</label>
+        <input type="password" id="password" autocomplete="current-password" required>
+      </div>
+      <button type="submit" class="btn btn--primary reserve-submit" id="login-submit">로그인</button>
+    </form>
+  </div>
+</section>
+
+<!-- Signed in but not on the staff list -->
+<section id="denied-view" class="admin-center" hidden>
+  <div class="reserve-card" style="text-align: center;">
+    <h2>접근 권한이 없습니다</h2>
+    <p>이 계정은 직원으로 등록되어 있지 않습니다. 관리자에게 등록을 요청해 주세요.</p>
+  </div>
+</section>
+
+<!-- Bookings -->
+<main id="app" class="admin-app" hidden>
+
+  <div class="stats">
+    <button type="button" class="stat stat--new" data-stat="new">
+      <span class="stat__label">신규 요청</span><span class="stat__num" id="stat-new">0</span>
+    </button>
+    <button type="button" class="stat" data-stat="today">
+      <span class="stat__label">오늘 예약</span><span class="stat__num" id="stat-today">0</span>
+    </button>
+    <button type="button" class="stat" data-stat="week">
+      <span class="stat__label">이번 주 예약</span><span class="stat__num" id="stat-week">0</span>
+    </button>
+    <button type="button" class="stat" data-stat="all">
+      <span class="stat__label">전체</span><span class="stat__num" id="stat-all">0</span>
+    </button>
+  </div>
+
+  <div class="toolbar">
+    <div class="toolbar__row">
+      <label class="search">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <input type="search" id="search" placeholder="이름, 연락처, 환자번호, 메모 검색" autocomplete="off">
+        <kbd>/</kbd>
+      </label>
+      <div class="seg" role="group" aria-label="보기 방식">
+        <button type="button" data-view="table" class="is-active">표</button>
+        <button type="button" data-view="agenda">일별</button>
+      </div>
+      <div class="toolbar__actions">
+        <button type="button" class="a-btn a-btn--ghost" id="refresh" title="새로고침">새로고침</button>
+        <button type="button" class="a-btn a-btn--ghost" id="export">엑셀 내보내기</button>
+      </div>
     </div>
-    <div class="form-error" id="list-error" role="alert"></div>
-    <div id="booking-list" class="booking-list"></div>
-    <p class="admin-empty" id="empty" hidden>해당하는 예약 요청이 없습니다.</p>
-  </section>
+
+    <div class="toolbar__row toolbar__row--filters">
+      <div class="filter-group">
+        <select id="date-field" aria-label="날짜 기준">
+          <option value="preferred_date">희망일 기준</option>
+          <option value="confirmed_date">확정일 기준</option>
+          <option value="created_date">접수일 기준</option>
+        </select>
+        <div class="presets" role="group" aria-label="기간">
+          <button type="button" data-preset="all" class="is-active">전체</button>
+          <button type="button" data-preset="today">오늘</button>
+          <button type="button" data-preset="tomorrow">내일</button>
+          <button type="button" data-preset="week">이번 주</button>
+          <button type="button" data-preset="month">이번 달</button>
+        </div>
+        <div class="range">
+          <input type="date" id="date-from" aria-label="시작일">
+          <span>~</span>
+          <input type="date" id="date-to" aria-label="종료일">
+        </div>
+      </div>
+      <div class="status-chips" role="group" aria-label="상태">
+        <button type="button" data-status="new" class="chip-s chip-s--new is-on">신규 <b data-count="new"></b></button>
+        <button type="button" data-status="contacted" class="chip-s chip-s--contacted is-on">연락함 <b data-count="contacted"></b></button>
+        <button type="button" data-status="confirmed" class="chip-s chip-s--confirmed is-on">확정 <b data-count="confirmed"></b></button>
+        <button type="button" data-status="cancelled" class="chip-s chip-s--cancelled">취소 <b data-count="cancelled"></b></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-error" id="list-error" role="alert"></div>
+
+  <div class="result-line">
+    <span id="result-count"></span>
+    <button type="button" class="link-btn" id="clear-filters" hidden>필터 초기화</button>
+  </div>
+
+  <div class="sheet" id="table-view">
+    <table class="grid">
+      <thead>
+        <tr>
+          <th data-sort="created_at" class="col-created">접수일시</th>
+          <th data-sort="patient_number" class="col-pn">환자번호</th>
+          <th data-sort="name" class="col-name">이름</th>
+          <th class="col-phone">연락처</th>
+          <th data-sort="visit_type" class="col-visit">구분</th>
+          <th data-sort="preferred_date" class="col-pref">희망일</th>
+          <th data-sort="preferred_time" class="col-ptime">희망시간</th>
+          <th data-sort="status" class="col-status">상태</th>
+          <th data-sort="confirmed_date" class="col-conf">확정 일시</th>
+          <th class="col-msg">문의 내용</th>
+          <th class="col-note">직원 메모</th>
+        </tr>
+      </thead>
+      <tbody id="grid-body"></tbody>
+    </table>
+    <p class="admin-empty" id="empty" hidden>조건에 맞는 예약이 없습니다.</p>
+  </div>
+
+  <div id="agenda-view" class="agenda" hidden></div>
 </main>
+
+<!-- Detail drawer -->
+<div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+<aside class="drawer" id="drawer" aria-hidden="true" aria-labelledby="d-name" tabindex="-1">
+  <div class="drawer__head">
+    <div>
+      <h2 id="d-name"></h2>
+      <div class="drawer__sub" id="d-sub"></div>
+    </div>
+    <button type="button" class="drawer__close" id="drawer-close" aria-label="닫기">&times;</button>
+  </div>
+  <div class="drawer__body">
+    <dl class="d-facts">
+      <dt>연락처</dt><dd id="d-phone"></dd>
+      <dt>희망 일시</dt><dd id="d-pref"></dd>
+      <dt>접수 일시</dt><dd id="d-created"></dd>
+    </dl>
+    <div class="d-msg-wrap">
+      <div class="d-label">문의 내용</div>
+      <p class="d-msg" id="d-msg"></p>
+    </div>
+
+    <div class="d-form">
+      <label class="d-field"><span class="d-label">환자번호</span>
+        <input type="text" id="d-pn" maxlength="30" placeholder="예: 2026-0153"></label>
+      <label class="d-field"><span class="d-label">상태</span>
+        <select id="d-status">
+          <option value="new">신규</option>
+          <option value="contacted">연락함</option>
+          <option value="confirmed">확정</option>
+          <option value="cancelled">취소</option>
+        </select></label>
+      <div class="d-field d-field--wide">
+        <span class="d-label">확정 일시</span>
+        <div class="d-when">
+          <input type="date" id="d-cdate" aria-label="확정 날짜">
+          <input type="time" id="d-ctime" step="600" aria-label="확정 시간">
+        </div>
+      </div>
+      <label class="d-field d-field--wide"><span class="d-label">직원 메모</span>
+        <textarea id="d-note" rows="5" maxlength="2000" placeholder="통화 내용, 특이사항 등"></textarea></label>
+    </div>
+    <div class="d-saved" id="d-saved" aria-live="polite"></div>
+  </div>
+</aside>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="js/admin.js"></script>
