@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>예약 관리 | 채정호 정신건강의학과의원</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&family=Hahmlet:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body class="admin">
+
+<header class="site-header">
+  <div class="site-header__inner">
+    <a href="admin.html" class="brand">
+      <span class="brand__ko">예약 관리</span>
+      <span class="brand__en">Staff only</span>
+    </a>
+    <div class="admin-user" id="admin-user" hidden>
+      <span id="admin-email"></span>
+      <button type="button" class="btn btn--outline admin-btn-sm" id="logout">로그아웃</button>
+    </div>
+  </div>
+</header>
+<div class="spectrum-thread"></div>
+
+<main>
+  <!-- Sign in -->
+  <section class="container" id="login-view" hidden>
+    <div class="reserve-card admin-login">
+      <img src="images/clinic-logo.svg" alt="스펙트럼 채정호 정신건강의학과의원" class="admin-login__logo" width="2015" height="553">
+      <h1>직원 로그인</h1>
+      <form id="login-form" novalidate>
+        <div class="form-error" id="login-error" role="alert"></div>
+        <div class="field">
+          <label for="email">이메일</label>
+          <input type="text" id="email" inputmode="email" autocomplete="username" required>
+        </div>
+        <div class="field">
+          <label for="password">비밀번호</label>
+          <input type="password" id="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn--primary reserve-submit" id="login-submit">로그인</button>
+      </form>
+    </div>
+  </section>
+
+  <!-- Signed in but not on the staff list -->
+  <section class="container" id="denied-view" hidden>
+    <div class="reserve-card" style="text-align: center;">
+      <h2>접근 권한이 없습니다</h2>
+      <p>이 계정은 직원으로 등록되어 있지 않습니다. 관리자에게 등록을 요청해 주세요.</p>
+    </div>
+  </section>
+
+  <!-- Bookings -->
+  <section class="container admin-main" id="list-view" hidden>
+    <div class="admin-toolbar">
+      <div class="admin-tabs" role="tablist">
+        <button type="button" data-filter="new" class="is-active">신규 <span class="count" data-count="new"></span></button>
+        <button type="button" data-filter="contacted">연락함 <span class="count" data-count="contacted"></span></button>
+        <button type="button" data-filter="confirmed">확정 <span class="count" data-count="confirmed"></span></button>
+        <button type="button" data-filter="cancelled">취소 <span class="count" data-count="cancelled"></span></button>
+        <button type="button" data-filter="all">전체 <span class="count" data-count="all"></span></button>
+      </div>
+      <button type="button" class="btn btn--outline admin-btn-sm" id="refresh">새로고침</button>
+    </div>
+    <div class="form-error" id="list-error" role="alert"></div>
+    <div id="booking-list" class="booking-list"></div>
+    <p class="admin-empty" id="empty" hidden>해당하는 예약 요청이 없습니다.</p>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="js/admin.js"></script>
+</body>
+</html>
