@@ -726,21 +726,31 @@ section { padding: 56px 0; }
 }
 
 /* ---------- Clinic site ---------- */
-.clinic-home { min-height: 100vh; display: flex; flex-direction: column; }
+.clinic-home { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; }
 .clinic-home__main {
   flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 40px; padding: 48px 24px;
+  gap: 56px; padding: 48px 24px 72px;
 }
-.clinic-home__logo { width: min(520px, 100%); height: auto; }
-.clinic-home__cta { font-size: 1.1rem; padding: 16px 40px; }
+.clinic-home__logo { width: min(620px, 100%); height: auto; }
+.clinic-home__cta { font-size: 1.15rem; padding: 18px 52px; letter-spacing: 0.02em; transition: background 0.2s ease; }
+.clinic-home__cta:hover { background: var(--brand-purple); }
+.btn:focus-visible { outline: 3px solid var(--brand-purple); outline-offset: 3px; }
+
+/* One orchestrated moment: logo settles in, then the button. */
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.clinic-home__logo { animation: rise 0.8s ease both; }
+.clinic-home__cta { animation: rise 0.8s 0.3s ease both; }
+@media (prefers-reduced-motion: reduce) {
+  .clinic-home__logo, .clinic-home__cta { animation: none; }
+}
 
 .clinic-header { background: var(--surface); border-bottom: 1px solid var(--border); }
 .clinic-header__inner { max-width: var(--max-width); margin: 0 auto; padding: 14px 24px; }
-.clinic-header img { height: 40px; width: auto; }
+.clinic-header img { height: 56px; width: auto; }
 
 .clinic-footer {
   display: flex; justify-content: center; align-items: center; gap: 14px; flex-wrap: wrap;
   padding: 24px; font-size: 0.85rem; color: var(--ink-faint); border-top: 1px solid var(--border-soft);
 }
-.clinic-footer__admin { color: var(--ink-faint); opacity: 0.55; }
+.clinic-footer__admin { color: var(--ink-faint); opacity: 0.6; }
 .clinic-footer__admin:hover { opacity: 1; }
