@@ -674,6 +674,9 @@ section { padding: 56px 0; }
 
 [hidden] { display: none !important; }
 
+/* Korean text wraps between words, not mid-word. */
+body { word-break: keep-all; overflow-wrap: break-word; }
+
 /* ---------- Clinic site ---------- */
 .clinic-home { min-height: 100vh; min-height: 100svh; display: flex; flex-direction: column; }
 .clinic-home__main {
