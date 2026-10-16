@@ -936,6 +936,7 @@
     }
     $("cv-grid").innerHTML = html;
     renderDayPanel(stats);
+    renderClosedList();
   }
 
   function renderDayPanel(stats) {
@@ -958,6 +959,11 @@
     if (shut) {
       h += '<div class="dp__closed"><b>휴진</b>' + (shut.reason ? " · " + esc(shut.reason) : "") +
         '<button type="button" class="a-btn" data-act="reopen">휴진 해제</button></div>';
+      var span = rangeOf(date);
+      if (span && span.from !== span.to) {
+        h += '<div class="dp__range"><button type="button" class="a-btn a-btn--block" data-act="reopen-range" data-from="' + span.from + '" data-to="' + span.to + '">이 기간 전체 해제 · ' +
+          fmtDay(span.from) + " ~ " + fmtDay(span.to) + " (" + dayCount(span.from, span.to) + "일)</button></div>";
+      }
     } else {
       h += '<button type="button" class="a-btn a-btn--block dp__close" data-act="close">이 날 휴진으로 지정</button>';
     }
@@ -1013,6 +1019,139 @@
         '<span class="st-badge st--' + r.status + '">' + STATUS[r.status] + "</span></button>";
     }).join("") + "</div>" : '<p class="pt-none">대기 중인 요청이 없습니다.</p>';
     el.innerHTML = h;
+  }
+
+  /* ---------- Closing a range of dates ---------- */
+
+  var PATIENT_OPEN_DAYS = [1, 2, 3];   // weekdays patients can book online (keep in step with the booking page)
+  var MAX_RANGE_DAYS = 366;
+
+  function dayCount(from, to) { return Math.round((Date.parse(to + "T00:00:00Z") - Date.parse(from + "T00:00:00Z")) / 86400e3) + 1; }
+  function fmtDayY(iso) { return (iso.slice(0, 4) !== today().slice(0, 4) ? iso.slice(0, 4) + "년 " : "") + fmtDay(iso); }
+
+  // Consecutive closed days with the same reason read as one holiday.
+  function groupClosedRanges() {
+    var out = [];
+    Object.keys(closedMap).sort().forEach(function (d) {
+      var reason = closedMap[d].reason || "", last = out[out.length - 1];
+      if (last && addDays(last.to, 1) === d && last.reason === reason) last.to = d;
+      else out.push({ from: d, to: d, reason: reason });
+    });
+    return out;
+  }
+  function rangeOf(date) {
+    return groupClosedRanges().filter(function (r) { return r.from <= date && date <= r.to; })[0] || null;
+  }
+
+  function renderClosedList() {
+    var t = today();
+    var ranges = groupClosedRanges().filter(function (r) { return r.to >= t; });
+    $("closed-list").innerHTML = !ranges.length ? "" :
+      '<h2 class="blk-title">휴진 일정 <span class="blk-count">' + ranges.length + "</span></h2>" + ranges.map(function (r) {
+        return '<div class="cl"><div class="cl__main"><div class="cl__dates">' + fmtDayY(r.from) + (r.from !== r.to ? " ~ " + fmtDayY(r.to) : "") +
+          "<span>" + dayCount(r.from, r.to) + "일</span></div>" + (r.reason ? '<div class="cl__reason">' + esc(r.reason) + "</div>" : "") + "</div>" +
+          '<button type="button" class="cl__btn" data-cl-view="' + r.from + '">달력에서 보기</button>' +
+          '<button type="button" class="cl__btn cl__btn--danger" data-cl-clear data-from="' + r.from + '" data-to="' + r.to + '">해제</button></div>';
+      }).join("");
+  }
+
+  // Works out what a range would do and shows it before anything is saved.
+  function rangeInfo() {
+    var from = $("range-from").value, to = $("range-to").value;
+    var out = { ok: false, dates: [], fresh: [], appts: [], pend: [] };
+    $("range-sum").innerHTML = ""; $("range-warn").hidden = true;
+    if (!from || !to) return out;
+    if (to < from) { $("range-sum").innerHTML = "<b>종료일이 시작일보다 앞서 있습니다.</b>"; return out; }
+    var n = dayCount(from, to);
+    if (n > MAX_RANGE_DAYS) { $("range-sum").innerHTML = "<b>한 번에 최대 " + MAX_RANGE_DAYS + "일까지 지정할 수 있습니다.</b>"; return out; }
+    for (var i = 0, d = from; i < n; i++, d = addDays(d, 1)) out.dates.push(d);
+    out.fresh = out.dates.filter(function (x) { return !closedMap[x]; });
+    var skipped = n - out.fresh.length;
+    var bookable = out.fresh.filter(function (x) { return PATIENT_OPEN_DAYS.indexOf(weekday(x)) !== -1; }).length;
+    $("range-sum").innerHTML = "<b>" + fmtDayY(from) + (from !== to ? " ~ " + fmtDayY(to) : "") + "</b> · 총 " + n + "일<br>" +
+      (out.fresh.length ? "새로 <b>" + out.fresh.length + "일</b>을 휴진으로 지정합니다." + (skipped ? " (이미 휴진인 " + skipped + "일은 그대로 둡니다)" : "")
+        + "<br>그중 환자가 온라인으로 예약할 수 있는 요일(월~수)은 <b>" + bookable + "일</b>입니다."
+        : "<b>선택한 날이 모두 이미 휴진입니다.</b>");
+    out.appts = rows.filter(function (r) { return isBlocking(r) && r.confirmed_date >= from && r.confirmed_date <= to; });
+    out.pend = rows.filter(function (r) { return (r.status === "new" || r.status === "contacted") && r.preferred_date >= from && r.preferred_date <= to; });
+    if (out.appts.length || out.pend.length) {
+      var names = out.appts.map(function (r) { return fmtDay(r.confirmed_date) + " " + esc(r.name); })
+        .concat(out.pend.map(function (r) { return fmtDay(r.preferred_date) + " " + esc(r.name) + " (요청)"; }));
+      $("range-warn").hidden = false;
+      $("range-warn").innerHTML = "<b>확인 필요</b> 이 기간에 확정 예약 " + out.appts.length + "건, 대기 요청 " + out.pend.length +
+        "건이 있습니다. 휴진으로 지정해도 예약이 자동으로 취소되거나 환자분께 안내되지는 않습니다.<br>" +
+        names.slice(0, 6).join(" · ") + (names.length > 6 ? " 외 " + (names.length - 6) + "건" : "");
+    }
+    out.ok = out.fresh.length > 0;
+    return out;
+  }
+
+  function openRangeDialog(pre) {
+    pre = pre || {};
+    var t = today(), start = pre.from && pre.from >= t ? pre.from : t;
+    $("range-error").classList.remove("is-visible");
+    $("range-from").min = t; $("range-to").min = t;
+    $("range-from").value = start; $("range-to").value = start;
+    $("range-reason").value = "";
+    rangeInfo();
+    $("range-dlg").showModal();
+    $("range-to").focus();
+  }
+
+  async function submitRange() {
+    var fail = function (m) { $("range-error").textContent = m; $("range-error").classList.add("is-visible"); };
+    $("range-error").classList.remove("is-visible");
+    var from = $("range-from").value, to = $("range-to").value;
+    if (!from || !to) return fail("시작일과 종료일을 선택해 주세요.");
+    if (to < from) return fail("종료일은 시작일과 같거나 이후여야 합니다.");
+    if (dayCount(from, to) > MAX_RANGE_DAYS) return fail("한 번에 최대 " + MAX_RANGE_DAYS + "일까지 지정할 수 있습니다.");
+    if (from < today()) return fail("지난 날짜는 지정할 수 없습니다.");
+    var info = rangeInfo();
+    if (!info.fresh.length) return fail("선택한 날이 모두 이미 휴진입니다.");
+    if (info.appts.length || info.pend.length) {
+      var go = await ask({
+        title: "예약이 있는 날이 포함되어 있습니다",
+        html: "<p>이 기간에 확정 예약 <b>" + info.appts.length + "건</b>, 대기 요청 <b>" + info.pend.length + "건</b>이 있습니다.</p><p>휴진으로 지정해도 예약은 자동으로 취소되지 않으며, 환자분께 직접 일정 변경을 안내해야 합니다.</p>",
+        ok: "그래도 휴진으로 지정", danger: true, cancel: "돌아가기"
+      });
+      if (go !== "ok") return;
+    }
+    var reason = $("range-reason").value.trim() || null;
+    var btn = $("range-save"); btn.disabled = true;
+    var done = [];
+    for (var i = 0; i < info.fresh.length; i += 100) {
+      var chunk = info.fresh.slice(i, i + 100).map(function (d) { return { day: d, reason: reason }; });
+      var res = await db.from("closed_days").insert(chunk).select();
+      if (res.error) { btn.disabled = false; if (done.length) { done.forEach(function (c) { closedMap[c.day] = c; }); render(); } return fail("일부를 저장하지 못했습니다 (" + done.length + "일만 지정됨). 다시 시도해 주세요."); }
+      done = done.concat(res.data);
+    }
+    btn.disabled = false;
+    done.forEach(function (c) { closedMap[c.day] = c; });
+    $("range-dlg").close();
+    state.calY = Number(from.slice(0, 4)); state.calM = Number(from.slice(5, 7)) - 1; state.selDay = from;
+    render();
+    var days = done.map(function (c) { return c.day; });
+    toast(days.length + "일을 휴진으로 지정했습니다", false, false, async function () {
+      var u = await db.from("closed_days").delete().in("day", days);
+      if (u.error) { toast("되돌리지 못했습니다. 달력에서 직접 해제해 주세요.", true); return; }
+      days.forEach(function (d) { delete closedMap[d]; });
+      render();
+    });
+  }
+
+  async function clearRange(from, to) {
+    var n = dayCount(from, to);
+    var ok = await ask({
+      title: n > 1 ? "이 기간의 휴진을 모두 해제할까요?" : "휴진을 해제할까요?",
+      html: "<p><b>" + fmtDayY(from) + (from !== to ? " ~ " + fmtDayY(to) + "</b> (" + n + "일)" : "</b>") + "이(가) 다시 예약 가능한 날이 됩니다. (월~수 외의 요일은 계속 예약이 제한됩니다.)</p>",
+      ok: n > 1 ? "기간 전체 해제" : "휴진 해제"
+    });
+    if (ok !== "ok") return;
+    var res = await db.from("closed_days").delete().gte("day", from).lte("day", to);
+    if (res.error) { toast("휴진을 해제하지 못했습니다. 다시 시도해 주세요.", true); return; }
+    Object.keys(closedMap).forEach(function (d) { if (d >= from && d <= to) delete closedMap[d]; });
+    toast(n > 1 ? "휴진 " + n + "일을 해제했습니다" : "휴진을 해제했습니다");
+    render();
   }
 
   // A slot holding several bookings asks which one to open instead of silently opening the first.
@@ -1475,9 +1614,32 @@
     var fs = e.target.closest("[data-slot]");
     if (fs) return openNewBooking({ date: state.selDay, time: fs.dataset.slot });
     var act = e.target.closest("[data-act]");
-    if (act) return act.dataset.act === "close" ? closeDay(state.selDay) : reopenDay(state.selDay);
+    if (act) {
+      if (act.dataset.act === "reopen-range") return clearRange(act.dataset.from, act.dataset.to);
+      return act.dataset.act === "close" ? closeDay(state.selDay) : reopenDay(state.selDay);
+    }
     var open = e.target.closest("[data-id]");
     if (open) openDrawer(open.dataset.id);
+  });
+
+  $("range-open").addEventListener("click", function () { openRangeDialog({ from: state.selDay }); });
+  $("range-cancel").addEventListener("click", function () { $("range-dlg").close(); });
+  $("range-form").addEventListener("submit", function (e) { e.preventDefault(); submitRange(); });
+  $("range-from").addEventListener("change", function () {
+    if ($("range-to").value < $("range-from").value) $("range-to").value = $("range-from").value;
+    rangeInfo();
+  });
+  $("range-to").addEventListener("change", rangeInfo);
+  $("closed-list").addEventListener("click", function (e) {
+    var v = e.target.closest("[data-cl-view]");
+    if (v) {
+      var d = v.dataset.clView;
+      state.calY = Number(d.slice(0, 4)); state.calM = Number(d.slice(5, 7)) - 1; state.selDay = d;
+      renderCalendar();
+      return;
+    }
+    var c = e.target.closest("[data-cl-clear]");
+    if (c) clearRange(c.dataset.from, c.dataset.to);
   });
 
   $("new-booking").addEventListener("click", function () { openNewBooking({ date: state.screen === "schedule" ? state.selDay : today() }); });
