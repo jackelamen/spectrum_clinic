@@ -54,8 +54,18 @@
         </fieldset>
 
         <div class="field">
-          <label for="preferred_date">희망 날짜<span class="req">*</span></label>
-          <input type="date" id="preferred_date" name="preferred_date" required>
+          <div class="field-label" id="date-label">희망 날짜<span class="req">*</span></div>
+          <div class="hint cal-note">진료 예약은 월요일, 화요일, 수요일에만 가능합니다.</div>
+          <input type="hidden" id="preferred_date" name="preferred_date">
+          <div class="cal" id="cal" role="group" aria-labelledby="date-label">
+            <div class="cal__head">
+              <button type="button" class="cal__nav" id="cal-prev" aria-label="이전 달">&lsaquo;</button>
+              <div class="cal__title" id="cal-title" aria-live="polite"></div>
+              <button type="button" class="cal__nav" id="cal-next" aria-label="다음 달">&rsaquo;</button>
+            </div>
+            <div class="cal__grid" id="cal-grid"></div>
+          </div>
+          <div class="cal-picked" id="cal-picked" aria-live="polite"></div>
         </div>
 
         <fieldset class="field">

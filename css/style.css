@@ -706,3 +706,29 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 }
 .clinic-footer__admin { color: var(--ink-faint); opacity: 0.6; }
 .clinic-footer__admin:hover { opacity: 1; }
+
+/* ---------- Booking calendar (Mon to Wed only) ---------- */
+.field-label { font-weight: 500; margin-bottom: 4px; }
+.cal-note { margin: 0 0 10px; }
+.cal { border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); padding: 12px; }
+.cal__head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.cal__title { font-weight: 700; }
+.cal__nav {
+  width: 36px; height: 36px; border-radius: 50%; border: 0; background: none; cursor: pointer;
+  font-size: 1.5rem; line-height: 1; color: var(--ink);
+}
+.cal__nav:hover:not(:disabled) { background: var(--surface-alt); }
+.cal__nav:disabled { color: var(--border); cursor: default; }
+.cal__grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+.cal__dow { font-size: 0.8rem; color: var(--ink-faint); padding: 4px 0; }
+.cal__dow.is-open { color: var(--ink); font-weight: 500; }
+.cal__day {
+  aspect-ratio: 1; width: 100%; max-width: 46px; justify-self: center; border-radius: 50%; border: 0; background: none;
+  font: inherit; font-size: 0.95rem; color: var(--border); cursor: default; font-variant-numeric: tabular-nums;
+}
+.cal__day.is-open { color: var(--ink); font-weight: 500; background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); cursor: pointer; }
+.cal__day.is-open:hover { box-shadow: inset 0 0 0 1.5px var(--ink); }
+.cal__day.is-today { text-decoration: underline; text-underline-offset: 3px; }
+.cal__day.is-selected { background: var(--ink); color: #fff; box-shadow: none; }
+.cal__day:focus-visible { outline: 2px solid var(--brand-purple); outline-offset: 2px; }
+.cal-picked { margin-top: 8px; font-size: 0.92rem; font-weight: 500; min-height: 1.4em; }
