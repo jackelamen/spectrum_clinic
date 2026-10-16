@@ -110,6 +110,7 @@
       function finish(v) { if (!done) { done = true; resolve(v); } }
       $("dlg-title").textContent = o.title;
       $("dlg-body").innerHTML = o.html || "";
+      $("dlg-ok").hidden = !!o.hideOk;
       $("dlg-ok").textContent = o.ok || "확인";
       $("dlg-ok").className = "a-btn " + (o.danger ? "a-btn--danger" : "a-btn--primary");
       $("dlg-cancel").textContent = o.cancel || "취소";
@@ -579,7 +580,9 @@
     var warn = $("d-dup");
     if (r._dup && !changed) {
       warn.hidden = false;
-      warn.innerHTML = "<b>중복 예약</b> 같은 시간에 확정된 다른 예약이 있습니다: " + r._dupWith.map(function (x) { return esc(x.name); }).join(", ");
+      warn.innerHTML = "<b>중복 예약</b> 같은 시간에 확정된 다른 예약이 있습니다: " + r._dupWith.map(function (x) {
+        return '<button type="button" class="link-btn" data-jump="' + x.id + '">' + esc(x.name) + "</button>";
+      }).join(", ");
     } else if (clash.length) {
       warn.hidden = false;
       warn.innerHTML = "<b>주의</b> 이 시간에 이미 확정된 예약이 있습니다: " + clash.map(function (x) { return esc(x.name); }).join(", ");
@@ -964,13 +967,23 @@
         var list = byTime[sl];
         if (!list) { h += '<button type="button" class="tt__slot is-free" data-slot="' + sl + '" title="' + sl + ' 비어 있음. 눌러서 예약 등록" aria-label="' + sl + ' 비어 있음, 예약 등록">' + sl.slice(3) + "</button>"; return; }
         var dup = list.length > 1;
-        h += '<button type="button" class="tt__slot is-booked' + (dup ? " is-dup" : "") + '" data-id="' + list[0].id + '" title="' + sl + " " +
+        h += '<button type="button" class="tt__slot is-booked' + (dup ? " is-dup" : "") + '" ' +
+          (dup ? 'data-ids="' + list.map(function (x) { return x.id; }).join(",") + '" data-slot-time="' + sl + '"' : 'data-id="' + list[0].id + '"') + ' title="' + sl + " " +
           esc(list.map(function (x) { return x.name; }).join(", ")) + (dup ? " (중복 예약)" : "") + '">' +
           '<small>' + sl.slice(3) + "</small>" + esc(list[0].name) + (dup ? " +" + (list.length - 1) : "") + "</button>";
       });
       h += "</div></div>";
     });
     h += "</div>";
+
+    var overlaps = Object.keys(byTime).filter(function (k) { return byTime[k].length > 1; }).sort();
+    if (overlaps.length) {
+      h += '<div class="d-dup d-dup--day"><b>중복 예약 ' + overlaps.length + "곳</b>" + overlaps.map(function (k) {
+        return '<div class="ov"><span class="ov__time">' + k + "</span>" + byTime[k].map(function (x) {
+          return '<button type="button" class="ov__who" data-id="' + x.id + '">' + esc(x.name) + (x.patient ? " <small>" + esc(x.patient.patient_number) + "</small>" : "") + "</button>";
+        }).join("") + "</div>";
+      }).join("") + "</div>";
+    }
 
     // Rows that fall outside the timetable (older confirmations) still need to be reachable.
     var stray = appts.filter(function (r) { return SLOTS.indexOf(fmtTime(r.confirmed_time)) === -1; });
@@ -988,6 +1001,25 @@
         '<span class="st-badge st--' + r.status + '">' + STATUS[r.status] + "</span></button>";
     }).join("") + "</div>" : '<p class="pt-none">대기 중인 요청이 없습니다.</p>';
     el.innerHTML = h;
+  }
+
+  // A slot holding several bookings asks which one to open instead of silently opening the first.
+  async function chooseBooking(ids, time) {
+    var items = ids.map(byId).filter(Boolean), picked = null;
+    var html = "<p>이 시간에 예약이 " + items.length + "건 겹쳐 있습니다. 확인할 예약을 선택해 주세요.</p><div class=\"choose\">" +
+      items.map(function (r) {
+        return '<button type="button" class="choose__item" data-pick="' + r.id + '"><span class="choose__l1"><b>' + esc(r.name) + "</b>" +
+          '<span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span></span>" +
+          '<span class="choose__l2">' + (r.patient ? esc(r.patient.patient_number) : "환자번호 없음") + " · " + esc(r.phone) + "</span></button>";
+      }).join("") + "</div>";
+    var done = ask({ title: fmtDay(state.selDay) + " " + time + " 중복 예약", html: html, hideOk: true, cancel: "닫기" });
+    $("dlg-body").onclick = function (e) {
+      var b = e.target.closest("[data-pick]");
+      if (b) { picked = b.dataset.pick; $("dlg-cancel").click(); }
+    };
+    await done;
+    $("dlg-body").onclick = null;
+    if (picked) openDrawer(picked);
   }
 
   async function closeDay(date) {
@@ -1377,6 +1409,11 @@
   $("drawer-close").addEventListener("click", closeDrawer);
   $("drawer-backdrop").addEventListener("click", closeDrawer);
 
+  $("d-dup").addEventListener("click", function (e) {
+    var j = e.target.closest("[data-jump]");
+    if (j) openDrawer(j.dataset.jump);
+  });
+
   $("d-cdate").addEventListener("change", function () {
     var r = byId(state.openId);
     fillSlots(r, $("d-cdate").value, $("d-ctime").value);
@@ -1421,6 +1458,8 @@
     if (window.innerWidth < 900) $("cv-side").scrollIntoView({ behavior: "smooth", block: "start" });
   });
   $("cv-side").addEventListener("click", function (e) {
+    var multi = e.target.closest("[data-ids]");
+    if (multi) return chooseBooking(multi.dataset.ids.split(","), multi.dataset.slotTime);
     var fs = e.target.closest("[data-slot]");
     if (fs) return openNewBooking({ date: state.selDay, time: fs.dataset.slot });
     var act = e.target.closest("[data-act]");

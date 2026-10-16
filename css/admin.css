@@ -692,3 +692,18 @@
 
 /* The public site styles every <section>; the staff screens manage their own spacing. */
 .admin section.screen { padding: 0; }
+
+/* ---------- Overlapping bookings ---------- */
+.choose { display: grid; gap: 8px; margin-top: 6px; }
+.choose__item { display: grid; gap: 2px; width: 100%; padding: 12px 14px; text-align: left; font: inherit; cursor: pointer; background: var(--surface); border: 1px solid var(--a-line); border-radius: 10px; color: var(--ink); }
+.choose__item:hover, .choose__item:focus-visible { border-color: var(--accent); background: var(--accent-wash); }
+.choose__l1 { display: flex; align-items: center; gap: 8px; }
+.choose__l1 b { font-size: 1rem; }
+.choose__l2 { font-size: 0.84rem; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.d-dup--day { margin-top: 14px; }
+.d-dup .link-btn { color: #98191e; font-weight: 700; text-decoration: underline; }
+.ov { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.ov__time { font-weight: 700; font-variant-numeric: tabular-nums; }
+.ov__who { font: inherit; font-size: 0.86rem; padding: 3px 10px; border-radius: 999px; cursor: pointer; color: #98191e; background: #fff; border: 1px solid #e2a5a7; }
+.ov__who:hover { background: #fdeaea; }
+.ov__who small { opacity: 0.75; }
