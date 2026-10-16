@@ -739,16 +739,26 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .cal__day.is-full .cal__num { text-decoration: line-through; text-decoration-color: var(--border); }
 .cal__full { font-size: 0.6rem; line-height: 1.1; color: var(--c-acceptance); opacity: 0.75; font-weight: 500; }
 
-.cal-soonest {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
-  margin-bottom: 10px; padding: 12px 14px; border-radius: var(--radius-sm);
-  background: var(--surface); border: 1px solid var(--brand-purple);
+
+/* ---------- Earliest available date banner ---------- */
+.soonest {
+  max-width: 640px; margin: 28px auto 0; padding: 20px 24px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+  background: var(--brand-purple); color: #fff; border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(164, 61, 180, 0.28);
 }
-.cal-soonest__label { display: block; font-size: 0.8rem; color: var(--brand-purple); font-weight: 500; }
-.cal-soonest__date { font-size: 1.02rem; }
-.cal-soonest__btn {
-  font: inherit; font-size: 0.9rem; font-weight: 500; padding: 8px 16px; border-radius: 999px; cursor: pointer;
-  border: 0; background: var(--brand-purple); color: #fff;
+.soonest__label { display: block; font-size: 0.85rem; opacity: 0.88; letter-spacing: 0.02em; }
+.soonest__date { display: block; font-family: var(--font-head); font-size: clamp(1.35rem, 4.6vw, 1.75rem); line-height: 1.35; }
+.soonest__btn {
+  font: inherit; font-weight: 700; font-size: 0.98rem; padding: 12px 24px; border-radius: 999px; cursor: pointer;
+  border: 0; background: #fff; color: var(--brand-purple);
 }
-.cal-soonest__btn:hover { background: #8e2f9d; }
-.cal-soonest__btn:focus-visible { outline: 2px solid var(--brand-purple); outline-offset: 2px; }
+.soonest__btn:hover { background: #f6eaf8; }
+.soonest__btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+.soonest + .container .reserve-card, .soonest ~ .container .reserve-card { margin-top: 20px; }
+.cal__day.is-soonest { box-shadow: inset 0 0 0 2px var(--brand-purple); }
+.cal__soon { font-size: 0.58rem; line-height: 1.1; color: var(--brand-purple); font-weight: 700; }
+.cal__day.is-selected .cal__soon { color: #fff; }
+@media (max-width: 480px) { .soonest { padding: 18px; } .soonest__btn { width: 100%; } }
+.soonest.is-picked { box-shadow: 0 6px 18px rgba(164, 61, 180, 0.18); }
+.soonest.is-picked .soonest__btn { background: transparent; color: #fff; box-shadow: inset 0 0 0 2px #fff; }

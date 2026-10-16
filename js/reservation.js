@@ -57,12 +57,13 @@ document.addEventListener("DOMContentLoaded", function () {
       var open = isOpen(s);
       var full = !open && inWindow(s);
       var picked = s === dateInput.value;
-      var cls = "cal__day" + (open ? " is-open" : "") + (full ? " is-full" : "") +
+      var soon = s === firstOpen;
+      var cls = "cal__day" + (open ? " is-open" : "") + (full ? " is-full" : "") + (soon ? " is-soonest" : "") +
         (s === today ? " is-today" : "") + (picked ? " is-selected" : "");
       var label = (view.m + 1) + "월 " + d + "일 " + DOW[dow(s)] + "요일" + (open ? "" : full ? ", 예약 마감" : ", 예약 불가");
       html += '<button type="button" class="' + cls + '" data-date="' + s + '"' +
         (open ? "" : " disabled") + (picked ? ' aria-pressed="true"' : "") + ' aria-label="' + label + '">' +
-        '<span class="cal__num">' + d + "</span>" + (full ? '<span class="cal__full">마감</span>' : "") + "</button>";
+        '<span class="cal__num">' + d + "</span>" + (full ? '<span class="cal__full">마감</span>' : "") + (soon ? '<span class="cal__soon">가장 빠름</span>' : "") + "</button>";
     }
     grid.innerHTML = html;
     prev.disabled = iso(view.y, view.m, 1).slice(0, 7) <= minMonth;
@@ -82,7 +83,8 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("cal-picked").textContent = "선택한 날짜: " + longDate(s);
     view = { y: Number(s.slice(0, 4)), m: Number(s.slice(5, 7)) - 1 };
     renderCal();
-    document.getElementById("soonest-pick").hidden = s === firstOpen;
+    document.getElementById("soonest").classList.toggle("is-picked", s === firstOpen);
+    document.getElementById("soonest-pick").textContent = s === firstOpen ? "\u2713 선택됨" : "이 날짜로 예약하기";
   }
 
   grid.addEventListener("click", function (e) {
@@ -91,7 +93,12 @@ document.addEventListener("DOMContentLoaded", function () {
     pick(b.dataset.date);
     grid.querySelector(".is-selected").focus();
   });
-  document.getElementById("soonest-pick").addEventListener("click", function () { pick(firstOpen); });
+  document.getElementById("soonest-pick").addEventListener("click", function () {
+    pick(firstOpen);
+    var next = !form.name.value.trim() ? form.name : (!phoneInput.value.trim() ? phoneInput : null);
+    if (next) { next.scrollIntoView({ behavior: "smooth", block: "center" }); next.focus({ preventScroll: true }); }
+    else document.getElementById("cal-picked").scrollIntoView({ behavior: "smooth", block: "center" });
+  });
   renderCal();
 
   // Format phone as 010-1234-5678 while typing.
@@ -120,6 +127,7 @@ document.addEventListener("DOMContentLoaded", function () {
     var data = {
       name: form.name.value.trim(),
       phone: phoneInput.value.trim(),
+      email: form.email.value.trim(),
       visit_type: radio("visit_type"),
       preferred_date: dateInput.value,
       preferred_time: radio("preferred_time"),
@@ -130,6 +138,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!data.name) return showError("성함을 입력해 주세요.");
     if (!/^01[0-9]-?\d{3,4}-?\d{4}$/.test(data.phone)) return showError("휴대폰 번호를 정확히 입력해 주세요.");
+    if (data.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) return showError("이메일 주소를 정확히 입력하시거나, 비워 두세요.");
     if (!data.visit_type) return showError("진료 구분을 선택해 주세요.");
     if (!data.preferred_date || !isOpen(data.preferred_date)) return showError("예약 가능한 희망 날짜를 선택해 주세요.");
     if (!data.preferred_time) return showError("희망 시간대를 선택해 주세요.");

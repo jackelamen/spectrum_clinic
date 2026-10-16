@@ -87,7 +87,7 @@
       </div>
       <div class="toolbar__actions">
         <button type="button" class="a-btn a-btn--ghost" id="refresh" title="새로고침">새로고침</button>
-        <button type="button" class="a-btn a-btn--ghost" id="export">엑셀 내보내기</button>
+        <button type="button" class="a-btn a-btn--ghost" id="export">엑셀(.xlsx) 다운로드</button>
       </div>
     </div>
 
@@ -125,6 +125,7 @@
   <div class="result-line">
     <span id="result-count"></span>
     <button type="button" class="link-btn" id="clear-filters" hidden>필터 초기화</button>
+    <button type="button" class="dup-chip" id="dup-filter" hidden></button>
   </div>
 
   <div class="sheet" id="table-view">
@@ -165,6 +166,7 @@
   <div class="drawer__body">
     <dl class="d-facts">
       <dt>연락처</dt><dd id="d-phone"></dd>
+      <dt>이메일</dt><dd id="d-email"></dd>
       <dt>희망 일시</dt><dd id="d-pref"></dd>
       <dt>접수 일시</dt><dd id="d-created"></dd>
     </dl>
@@ -173,29 +175,53 @@
       <p class="d-msg" id="d-msg"></p>
     </div>
 
-    <div class="d-form">
-      <label class="d-field"><span class="d-label">환자번호</span>
-        <input type="text" id="d-pn" maxlength="30" placeholder="예: 2026-0153"></label>
-      <label class="d-field"><span class="d-label">상태</span>
-        <select id="d-status">
-          <option value="new">신규</option>
-          <option value="contacted">연락함</option>
-          <option value="confirmed">확정</option>
-          <option value="cancelled">취소</option>
-        </select></label>
-      <div class="d-field d-field--wide">
-        <span class="d-label">확정 일시</span>
-        <div class="d-when">
-          <input type="date" id="d-cdate" aria-label="확정 날짜">
-          <input type="time" id="d-ctime" step="600" aria-label="확정 시간">
+    <section class="d-section" id="d-patient">
+      <h3>환자번호</h3>
+      <div id="d-patient-body"></div>
+    </section>
+
+    <section class="d-section" id="d-schedule">
+      <h3>예약 확정</h3>
+      <div class="d-dup" id="d-dup" hidden></div>
+      <div class="d-form">
+        <label class="d-field"><span class="d-label">상태</span>
+          <select id="d-status">
+            <option value="new">신규</option>
+            <option value="contacted">연락함</option>
+            <option value="confirmed">확정</option>
+            <option value="cancelled">취소</option>
+          </select></label>
+        <div class="d-field d-field--wide">
+          <span class="d-label">확정 일시 (10분 단위)</span>
+          <div class="d-when">
+            <input type="date" id="d-cdate" aria-label="확정 날짜">
+            <select id="d-ctime" aria-label="확정 시간"></select>
+          </div>
         </div>
       </div>
-      <label class="d-field d-field--wide"><span class="d-label">직원 메모</span>
-        <textarea id="d-note" rows="5" maxlength="2000" placeholder="통화 내용, 특이사항 등"></textarea></label>
-    </div>
-    <div class="d-saved" id="d-saved" aria-live="polite"></div>
+      <button type="button" class="a-btn a-btn--primary a-btn--block" id="d-primary"></button>
+      <button type="button" class="a-btn a-btn--ghost a-btn--block" id="d-resend" hidden>안내 메일 다시 보내기</button>
+      <div class="d-mail" id="d-mail"></div>
+    </section>
+
+    <section class="d-section">
+      <h3>직원 메모</h3>
+      <textarea id="d-note" rows="4" maxlength="2000" placeholder="통화 내용, 특이사항 등"></textarea>
+    </section>
   </div>
 </aside>
+
+<dialog class="dlg" id="dlg" aria-labelledby="dlg-title">
+  <form method="dialog">
+    <h2 id="dlg-title"></h2>
+    <div class="dlg__body" id="dlg-body"></div>
+    <div class="dlg__actions">
+      <button type="submit" value="cancel" class="a-btn" id="dlg-cancel">취소</button>
+      <button type="submit" value="alt" class="a-btn" id="dlg-alt" hidden></button>
+      <button type="submit" value="ok" class="a-btn a-btn--primary" id="dlg-ok">확인</button>
+    </div>
+  </form>
+</dialog>
 
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
