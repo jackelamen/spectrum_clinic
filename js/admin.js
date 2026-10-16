@@ -9,8 +9,12 @@
   var CLINIC_END = "18:00";   // last slot starts 10 minutes before this
 
   var VISIT = { first: "초진", returning: "재진" };
-  var TIME = { morning: "오전", afternoon: "오후", any: "상관없음" };
-  var TIME_ORDER = { morning: 0, afternoon: 1, any: 2 };
+  // Two-hour request windows inside office hours. morning/afternoon are the older choices.
+  var TIME = {
+    "09-11": "오전 9~11시", "11-13": "오전 11시~오후 1시", "13-15": "오후 1~3시", "15-17": "오후 3~5시", "17-18": "오후 5~6시",
+    morning: "오전", afternoon: "오후", any: "상관없음"
+  };
+  var TIME_ORDER = { "09-11": 0, morning: 0, "11-13": 1, "13-15": 2, afternoon: 2, "15-17": 3, "17-18": 4, any: 9 };
   var STATUS = { new: "신규", contacted: "연락함", confirmed: "확정", cancelled: "취소" };
   var STATUS_ORDER = { new: 0, contacted: 1, confirmed: 2, cancelled: 3 };
   var DAYS = ["일", "월", "화", "수", "목", "금", "토"];
