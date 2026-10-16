@@ -322,25 +322,37 @@
     $("empty").hidden = list.length > 0;
     $("grid-body").innerHTML = list.map(function (r) {
       var rel = relDay(r.preferred_date);
+      var created = fmtStamp(r.created_at).split(" ");
       var conf = r.confirmed_date
-        ? '<span class="conf">' + fmtDay(r.confirmed_date) + (r.confirmed_time ? " " + fmtTime(r.confirmed_time) : "") + "</span>" +
-          (r.status === "confirmed" && r.confirmation_sent_at ? ' <span class="mail-ok" title="안내 메일 발송됨">&#9993;</span>' : "")
+        ? '<span class="stack"><span>' + fmtDay(r.confirmed_date) + '</span><span class="conf">' + (r.confirmed_time ? fmtTime(r.confirmed_time) : "시간 미정") +
+          (r.status === "confirmed" && r.confirmation_sent_at ? ' <span class="mail-ok" title="안내 메일 발송됨">&#9993;</span>' : "") + "</span></span>"
         : '<span class="muted">미정</span>';
       return '<tr data-id="' + r.id + '" class="row--' + r.status + (r._dup ? " row--dup" : "") + (r.id === state.openId ? " is-open" : "") + '">' +
-        '<td class="col-created num">' + fmtStamp(r.created_at) + "</td>" +
-        '<td class="col-pn">' + pnCell(r) + "</td>" +
-        '<td class="col-name"><button type="button" class="name-btn" data-open>' + esc(r.name) + "</button>" + (r.source === "staff" ? ' <span class="src-tag">직접 등록</span>' : "") + (r._dup ? " " + dupBadge(r) : "") + "</td>" +
-        '<td class="col-phone num"><a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + "</a></td>" +
-        '<td class="col-visit"><span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span></td>" +
-        '<td class="col-pref num">' + fmtDay(r.preferred_date) + (rel ? ' <span class="rel">' + rel + "</span>" : "") + "</td>" +
-        '<td class="col-ptime">' + TIME[r.preferred_time] + "</td>" +
-        '<td class="col-status">' + statusSelect(r) + "</td>" +
-        '<td class="col-conf num">' + conf + "</td>" +
-        '<td class="col-msg"><span class="clip" title="' + esc(r.message) + '">' + (r.message ? esc(r.message) : '<span class="muted">-</span>') + "</span></td>" +
-        '<td class="col-note"><input class="cell-input" data-field="staff_note" value="' + esc(r.staff_note) + '" placeholder="메모" maxlength="2000" aria-label="직원 메모"></td>' +
+        '<td class="col-created num" data-label="접수"><span class="stack"><span>' + created[0] + '</span><span class="muted">' + created[1] + "</span></span></td>" +
+        '<td class="col-pn" data-label="환자번호">' + pnCell(r) + "</td>" +
+        '<td class="col-name" data-label="이름 · 연락처"><span class="stack"><span class="nm"><button type="button" class="name-btn" data-open>' + esc(r.name) + "</button>" +
+          '<span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span>" + (r.source === "staff" ? '<span class="src-tag">직접</span>' : "") + (r._dup ? dupBadge(r) : "") + "</span>" +
+          '<a class="sub num" href="tel:' + esc(r.phone) + '">' + esc(r.phone) + "</a></span></td>" +
+        '<td class="col-pref num" data-label="희망 일시"><span class="stack"><span>' + fmtDay(r.preferred_date) + (rel ? ' <span class="rel">' + rel + "</span>" : "") +
+          '</span><span class="muted">' + TIME[r.preferred_time] + "</span></span></td>" +
+        '<td class="col-status" data-label="상태">' + statusSelect(r) + "</td>" +
+        '<td class="col-conf num" data-label="확정 일시">' + conf + "</td>" +
+        '<td class="col-msg" data-label="문의 내용">' + (r.message ? '<span class="clamp" title="' + esc(r.message) + '">' + esc(r.message) + "</span>" : '<span class="muted">-</span>') + "</td>" +
+        '<td class="col-note" data-label="직원 메모"><textarea class="cell-input note-input" rows="1" data-field="staff_note" maxlength="2000" placeholder="메모 추가" aria-label="직원 메모">' + esc(r.staff_note) + "</textarea></td>" +
       "</tr>";
     }).join("");
+    fitNotes();
   }
+
+  // Memo boxes grow with their text so a whole note is always visible.
+  function fitNotes() {
+    $$("#grid-body .note-input").forEach(function (t) { t.style.height = "auto"; t.style.height = t.scrollHeight + 2 + "px"; });
+  }
+  var fitTimer;
+  window.addEventListener("resize", function () { clearTimeout(fitTimer); fitTimer = setTimeout(fitNotes, 120); });
+  $("grid-body").addEventListener("input", function (e) {
+    if (e.target.classList.contains("note-input")) { e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + 2 + "px"; }
+  });
 
   function renderAgenda(list, t) {
     var groups = {};
@@ -1394,7 +1406,7 @@
   $("grid-body").addEventListener("change", onInlineChange);
   $("agenda-view").addEventListener("change", onInlineChange);
   $("grid-body").addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && e.target.classList.contains("cell-input")) e.target.blur();
+    if (e.key === "Enter" && !e.shiftKey && e.target.classList.contains("cell-input")) { e.preventDefault(); e.target.blur(); }
   });
 
   function onOpen(e) {

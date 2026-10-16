@@ -206,20 +206,17 @@
         <div class="sheet" id="table-view">
           <table class="grid">
             <thead>
-              <tr>
-                <th data-sort="created_at" class="col-created">접수일시</th>
-                <th data-sort="patient_number" class="col-pn">환자번호</th>
-                <th data-sort="name" class="col-name">이름</th>
-                <th class="col-phone">연락처</th>
-                <th data-sort="visit_type" class="col-visit">구분</th>
-                <th data-sort="preferred_date" class="col-pref">희망일</th>
-                <th data-sort="preferred_time" class="col-ptime">희망시간</th>
-                <th data-sort="status" class="col-status">상태</th>
-                <th data-sort="confirmed_date" class="col-conf">확정 일시</th>
-                <th class="col-msg">문의 내용</th>
-                <th class="col-note">직원 메모</th>
-              </tr>
-            </thead>
+          <tr>
+            <th data-sort="created_at" class="col-created">접수</th>
+            <th data-sort="patient_number" class="col-pn">환자번호</th>
+            <th data-sort="name" class="col-name">이름 · 연락처</th>
+            <th data-sort="preferred_date" class="col-pref">희망 일시</th>
+            <th data-sort="status" class="col-status">상태</th>
+            <th data-sort="confirmed_date" class="col-conf">확정 일시</th>
+            <th class="col-msg">문의 내용</th>
+            <th class="col-note">직원 메모</th>
+          </tr>
+        </thead>
             <tbody id="grid-body"></tbody>
           </table>
           <p class="admin-empty" id="empty" hidden>조건에 맞는 예약이 없습니다.</p>
