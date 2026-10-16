@@ -9,44 +9,63 @@ document.addEventListener("DOMContentLoaded", function () {
   var dateInput = document.getElementById("preferred_date");
   var phoneInput = document.getElementById("phone");
 
-  // Bookable days: Monday, Tuesday, Wednesday, from today (Korea time) up to 90 days out.
+  /* ---------- Booking rules (edit here to open more days) ----------
+     OPEN_DAYS: weekdays patients can book (0 = Sun ... 6 = Sat).
+     Other weekdays inside the window show as fully booked ("마감").
+     OPENING_DATE: no bookings before the clinic opens.
+     The reservation server function enforces the same three values. */
   var OPEN_DAYS = [1, 2, 3];
-  var MAX_DAYS_AHEAD = 90;
+  var OPENING_DATE = "2027-03-14";
+  var WINDOW_DAYS = 90;
+
   var DOW = ["일", "월", "화", "수", "목", "금", "토"];
   var today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
 
   function iso(y, m, d) { return new Date(Date.UTC(y, m, d)).toISOString().slice(0, 10); }
   function dow(s) { return new Date(s + "T00:00:00Z").getUTCDay(); }
   function addDays(s, n) { var d = new Date(s + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
-  var lastDay = addDays(today, MAX_DAYS_AHEAD);
-  function isOpen(s) { return s >= today && s <= lastDay && OPEN_DAYS.indexOf(dow(s)) !== -1; }
+  function longDate(s) { return Number(s.slice(0, 4)) + "년 " + Number(s.slice(5, 7)) + "월 " + Number(s.slice(8, 10)) + "일 " + DOW[dow(s)] + "요일"; }
 
-  var firstOpen = today;
+  var firstDay = today > OPENING_DATE ? today : OPENING_DATE;
+  var lastDay = addDays(firstDay, WINDOW_DAYS);
+  function inWindow(s) { return s >= firstDay && s <= lastDay; }
+  function isOpen(s) { return inWindow(s) && OPEN_DAYS.indexOf(dow(s)) !== -1; }
+
+  var firstOpen = firstDay;
   while (!isOpen(firstOpen)) firstOpen = addDays(firstOpen, 1);
+  var minMonth = firstDay.slice(0, 7);
   var view = { y: Number(firstOpen.slice(0, 4)), m: Number(firstOpen.slice(5, 7)) - 1 };
 
   var grid = document.getElementById("cal-grid");
   var prev = document.getElementById("cal-prev");
   var next = document.getElementById("cal-next");
 
+  if (today < OPENING_DATE) {
+    document.getElementById("cal-opening").textContent =
+      Number(OPENING_DATE.slice(0, 4)) + "년 " + Number(OPENING_DATE.slice(5, 7)) + "월 " + Number(OPENING_DATE.slice(8, 10)) + "일 개원 예정이며, 개원일 이후 날짜로 예약하실 수 있습니다.";
+  }
+  document.getElementById("soonest-date").textContent = longDate(firstOpen);
+
   function renderCal() {
     document.getElementById("cal-title").textContent = view.y + "년 " + (view.m + 1) + "월";
-    var html = DOW.map(function (d, i) {
-      return '<div class="cal__dow' + (OPEN_DAYS.indexOf(i) !== -1 ? " is-open" : "") + '">' + d + "</div>";
-    }).join("");
+    var html = DOW.map(function (d) { return '<div class="cal__dow">' + d + "</div>"; }).join("");
     var startDow = new Date(Date.UTC(view.y, view.m, 1)).getUTCDay();
     var days = new Date(Date.UTC(view.y, view.m + 1, 0)).getUTCDate();
     for (var i = 0; i < startDow; i++) html += "<div></div>";
     for (var d = 1; d <= days; d++) {
       var s = iso(view.y, view.m, d);
       var open = isOpen(s);
-      var cls = "cal__day" + (open ? " is-open" : "") + (s === today ? " is-today" : "") + (s === dateInput.value ? " is-selected" : "");
+      var full = !open && inWindow(s);
+      var picked = s === dateInput.value;
+      var cls = "cal__day" + (open ? " is-open" : "") + (full ? " is-full" : "") +
+        (s === today ? " is-today" : "") + (picked ? " is-selected" : "");
+      var label = (view.m + 1) + "월 " + d + "일 " + DOW[dow(s)] + "요일" + (open ? "" : full ? ", 예약 마감" : ", 예약 불가");
       html += '<button type="button" class="' + cls + '" data-date="' + s + '"' +
-        (open ? "" : " disabled") + (s === dateInput.value ? ' aria-pressed="true"' : "") +
-        ' aria-label="' + (view.m + 1) + "월 " + d + "일 " + DOW[dow(s)] + "요일" + (open ? "" : ", 예약 불가") + '">' + d + "</button>";
+        (open ? "" : " disabled") + (picked ? ' aria-pressed="true"' : "") + ' aria-label="' + label + '">' +
+        '<span class="cal__num">' + d + "</span>" + (full ? '<span class="cal__full">마감</span>' : "") + "</button>";
     }
     grid.innerHTML = html;
-    prev.disabled = iso(view.y, view.m, 1) <= today.slice(0, 8) + "01";
+    prev.disabled = iso(view.y, view.m, 1).slice(0, 7) <= minMonth;
     next.disabled = iso(view.y, view.m + 1, 1) > lastDay;
   }
 
@@ -58,16 +77,21 @@ document.addEventListener("DOMContentLoaded", function () {
   prev.addEventListener("click", function () { shiftMonth(-1); });
   next.addEventListener("click", function () { shiftMonth(1); });
 
+  function pick(s) {
+    dateInput.value = s;
+    document.getElementById("cal-picked").textContent = "선택한 날짜: " + longDate(s);
+    view = { y: Number(s.slice(0, 4)), m: Number(s.slice(5, 7)) - 1 };
+    renderCal();
+    document.getElementById("soonest-pick").hidden = s === firstOpen;
+  }
+
   grid.addEventListener("click", function (e) {
     var b = e.target.closest(".cal__day.is-open");
     if (!b) return;
-    dateInput.value = b.dataset.date;
-    var s = b.dataset.date;
-    document.getElementById("cal-picked").textContent =
-      "선택한 날짜: " + Number(s.slice(5, 7)) + "월 " + Number(s.slice(8, 10)) + "일 " + DOW[dow(s)] + "요일";
-    renderCal();
+    pick(b.dataset.date);
     grid.querySelector(".is-selected").focus();
   });
+  document.getElementById("soonest-pick").addEventListener("click", function () { pick(firstOpen); });
   renderCal();
 
   // Format phone as 010-1234-5678 while typing.
@@ -107,7 +131,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (!data.name) return showError("성함을 입력해 주세요.");
     if (!/^01[0-9]-?\d{3,4}-?\d{4}$/.test(data.phone)) return showError("휴대폰 번호를 정확히 입력해 주세요.");
     if (!data.visit_type) return showError("진료 구분을 선택해 주세요.");
-    if (!data.preferred_date || !isOpen(data.preferred_date)) return showError("희망 날짜를 선택해 주세요. 월요일, 화요일, 수요일만 예약할 수 있습니다.");
+    if (!data.preferred_date || !isOpen(data.preferred_date)) return showError("예약 가능한 희망 날짜를 선택해 주세요.");
     if (!data.preferred_time) return showError("희망 시간대를 선택해 주세요.");
     if (!data.privacy_consent) return showError("개인정보 수집 및 이용에 동의해 주세요.");
 

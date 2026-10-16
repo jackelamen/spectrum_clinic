@@ -732,3 +732,23 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .cal__day.is-selected { background: var(--ink); color: #fff; box-shadow: none; }
 .cal__day:focus-visible { outline: 2px solid var(--brand-purple); outline-offset: 2px; }
 .cal-picked { margin-top: 8px; font-size: 0.92rem; font-weight: 500; min-height: 1.4em; }
+.cal-note:empty { display: none; }
+.cal__day { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; padding: 0; }
+.cal__num { line-height: 1.1; }
+.cal__day.is-full { color: var(--ink-faint); cursor: default; }
+.cal__day.is-full .cal__num { text-decoration: line-through; text-decoration-color: var(--border); }
+.cal__full { font-size: 0.6rem; line-height: 1.1; color: var(--c-acceptance); opacity: 0.75; font-weight: 500; }
+
+.cal-soonest {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  margin-bottom: 10px; padding: 12px 14px; border-radius: var(--radius-sm);
+  background: var(--surface); border: 1px solid var(--brand-purple);
+}
+.cal-soonest__label { display: block; font-size: 0.8rem; color: var(--brand-purple); font-weight: 500; }
+.cal-soonest__date { font-size: 1.02rem; }
+.cal-soonest__btn {
+  font: inherit; font-size: 0.9rem; font-weight: 500; padding: 8px 16px; border-radius: 999px; cursor: pointer;
+  border: 0; background: var(--brand-purple); color: #fff;
+}
+.cal-soonest__btn:hover { background: #8e2f9d; }
+.cal-soonest__btn:focus-visible { outline: 2px solid var(--brand-purple); outline-offset: 2px; }

@@ -55,7 +55,14 @@
 
         <div class="field">
           <div class="field-label" id="date-label">희망 날짜<span class="req">*</span></div>
-          <div class="hint cal-note">진료 예약은 월요일, 화요일, 수요일에만 가능합니다.</div>
+          <div class="hint cal-note" id="cal-opening"></div>
+          <div class="cal-soonest">
+            <div>
+              <span class="cal-soonest__label">가장 빠른 예약 가능일</span>
+              <strong class="cal-soonest__date" id="soonest-date"></strong>
+            </div>
+            <button type="button" class="cal-soonest__btn" id="soonest-pick">이 날짜로 선택</button>
+          </div>
           <input type="hidden" id="preferred_date" name="preferred_date">
           <div class="cal" id="cal" role="group" aria-labelledby="date-label">
             <div class="cal__head">
