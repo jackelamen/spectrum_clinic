@@ -17,16 +17,6 @@
 </head>
 <body class="admin">
 
-<header class="admin-top">
-  <a href="admin.html" class="admin-top__brand">
-    <img src="images/favicon-512.png" alt="" width="36" height="36">
-    <span>예약 관리</span>
-  </a>
-  <div class="admin-top__user" id="admin-user" hidden>
-    <span id="admin-email"></span>
-    <button type="button" class="a-btn a-btn--ghost" id="logout">로그아웃</button>
-  </div>
-</header>
 
 <!-- Sign in -->
 <section id="login-view" class="admin-center" hidden>
@@ -56,125 +46,189 @@
   </div>
 </section>
 
-<!-- Bookings -->
-<main id="app" class="admin-app" hidden>
-
-  <div class="stats">
-    <button type="button" class="stat stat--new" data-stat="new">
-      <span class="stat__label">신규 요청</span><span class="stat__num" id="stat-new">0</span>
+<!-- App -->
+<div id="app" class="shell" hidden>
+  <aside class="side" id="side">
+    <a class="side__brand" href="admin.html" aria-label="예약 관리 홈">
+      <img src="images/favicon-512.png" alt="" width="34" height="34">
+      <span class="side__name">예약 관리<small>스펙트럼 채정호 정신건강의학과의원</small></span>
+    </a>
+    <button type="button" class="side__new" id="new-booking">
+      <svg viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M10 4v12M4 10h12"/></svg>
+      <span>새 예약</span>
     </button>
-    <button type="button" class="stat" data-stat="today">
-      <span class="stat__label">오늘 예약</span><span class="stat__num" id="stat-today">0</span>
-    </button>
-    <button type="button" class="stat" data-stat="week">
-      <span class="stat__label">이번 주 예약</span><span class="stat__num" id="stat-week">0</span>
-    </button>
-    <button type="button" class="stat" data-stat="all">
-      <span class="stat__label">전체</span><span class="stat__num" id="stat-all">0</span>
-    </button>
-  </div>
-
-  <div class="toolbar">
-    <div class="toolbar__row">
-      <label class="search">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-        <input type="search" id="search" placeholder="이름, 연락처, 환자번호, 메모 검색" autocomplete="off">
-        <kbd>/</kbd>
-      </label>
-      <div class="seg" role="group" aria-label="보기 방식">
-        <button type="button" data-view="table" class="is-active">표</button>
-        <button type="button" data-view="calendar">달력</button>
-        <button type="button" data-view="agenda">일별</button>
-      </div>
-      <div class="toolbar__actions">
-        <button type="button" class="a-btn a-btn--primary" id="new-booking">+ 새 예약</button>
-        <button type="button" class="a-btn a-btn--ghost" id="refresh" title="새로고침">새로고침</button>
-        <button type="button" class="a-btn a-btn--ghost" id="export">엑셀(.xlsx) 다운로드</button>
-      </div>
+    <nav class="side__nav" aria-label="메뉴">
+      <button type="button" data-screen="today" class="is-active"><svg class="side__ico" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="M10 6v4l2.5 1.5"/></svg><span class="side__label">오늘</span><span class="side__badge" id="badge-today"></span></button>
+      <button type="button" data-screen="requests"><svg class="side__ico" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l2-6h10l2 6v4a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-4z"/><path d="M3 11h4l1 2h4l1-2h4"/></svg><span class="side__label">요청</span><span class="side__badge side__badge--alert" id="badge-requests"></span></button>
+      <button type="button" data-screen="schedule"><svg class="side__ico" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="14" height="12" rx="2"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg><span class="side__label">일정</span></button>
+      <button type="button" data-screen="all"><svg class="side__ico" viewBox="0 0 20 20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h12M4 10h12M4 15h12"/></svg><span class="side__label">전체 목록</span></button>
+    </nav>
+    <div class="side__foot" id="admin-user" hidden>
+      <div class="side__who"><span class="side__avatar" id="admin-avatar" aria-hidden="true"></span><span class="side__email" id="admin-email"></span></div>
+      <button type="button" class="side__logout" id="logout">로그아웃</button>
     </div>
+  </aside>
 
-    <div class="toolbar__row toolbar__row--filters">
-      <div class="filter-group">
-        <select id="date-field" aria-label="날짜 기준">
-          <option value="preferred_date">희망일 기준</option>
-          <option value="confirmed_date">확정일 기준</option>
-          <option value="created_date">접수일 기준</option>
-        </select>
-        <div class="presets" role="group" aria-label="기간">
-          <button type="button" data-preset="all" class="is-active">전체</button>
-          <button type="button" data-preset="today">오늘</button>
-          <button type="button" data-preset="tomorrow">내일</button>
-          <button type="button" data-preset="week">이번 주</button>
-          <button type="button" data-preset="month">이번 달</button>
+  <main class="main">
+    <!-- Today -->
+    <section class="screen" id="screen-today" aria-labelledby="today-title">
+      <header class="screen__head">
+        <div><h1 id="today-title"></h1><p class="screen__sub" id="today-sub"></p></div>
+      </header>
+      <div id="today-alerts"></div>
+      <div class="today">
+        <div class="today__main">
+          <h2 class="blk-title">오늘 일정</h2>
+          <div id="today-timeline"></div>
+          <div id="tomorrow-block"></div>
         </div>
-        <div class="range">
-          <input type="date" id="date-from" aria-label="시작일">
-          <span>~</span>
-          <input type="date" id="date-to" aria-label="종료일">
+        <aside class="today__side">
+          <h2 class="blk-title">답변이 필요한 요청 <span class="blk-count" id="today-new-count"></span></h2>
+          <div id="today-queue"></div>
+          <div id="today-followup-block"></div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- Requests -->
+    <section class="screen screen--split" id="screen-requests" hidden aria-labelledby="req-title">
+      <div class="req">
+        <div class="req__list">
+          <header class="req__head">
+            <h1 id="req-title">요청</h1>
+            <label class="search search--sm">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <input type="search" id="req-search" placeholder="이름, 연락처, 환자번호 검색" autocomplete="off">
+              <kbd>/</kbd>
+            </label>
+            <div class="req__tabs" id="req-tabs" role="tablist" aria-label="요청 상태">
+              <button type="button" role="tab" data-rt="new" class="is-active">대기 <b></b></button>
+              <button type="button" role="tab" data-rt="contacted">연락함 <b></b></button>
+              <button type="button" role="tab" data-rt="confirmed">확정 <b></b></button>
+              <button type="button" role="tab" data-rt="cancelled">취소 <b></b></button>
+              <button type="button" role="tab" data-rt="all">전체 <b></b></button>
+            </div>
+          </header>
+          <div class="req__items" id="req-list" role="listbox" aria-label="요청 목록"></div>
+        </div>
+        <div class="req__detail" id="req-detail">
+          <div class="req__empty" id="req-empty">
+            <svg viewBox="0 0 48 48" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 28l5-16h26l5 16v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V28z"/><path d="M6 28h10l2 5h12l2-5h10"/></svg>
+            <p>목록에서 요청을 선택하면<br>여기에 자세한 내용이 표시됩니다.</p>
+            <small>&uarr; &darr; 키로 요청을 넘겨 볼 수 있습니다</small>
+          </div>
         </div>
       </div>
-      <div class="status-chips" role="group" aria-label="상태">
-        <button type="button" data-status="new" class="chip-s chip-s--new is-on">신규 <b data-count="new"></b></button>
-        <button type="button" data-status="contacted" class="chip-s chip-s--contacted is-on">연락함 <b data-count="contacted"></b></button>
-        <button type="button" data-status="confirmed" class="chip-s chip-s--confirmed is-on">확정 <b data-count="confirmed"></b></button>
-        <button type="button" data-status="cancelled" class="chip-s chip-s--cancelled">취소 <b data-count="cancelled"></b></button>
-      </div>
-    </div>
-  </div>
+    </section>
 
-  <div class="form-error" id="list-error" role="alert"></div>
-
-  <div class="result-line">
-    <span id="result-count"></span>
-    <button type="button" class="link-btn" id="clear-filters" hidden>필터 초기화</button>
-    <button type="button" class="dup-chip" id="dup-filter" hidden></button>
-  </div>
-
-  <div class="sheet" id="table-view">
-    <table class="grid">
-      <thead>
-        <tr>
-          <th data-sort="created_at" class="col-created">접수일시</th>
-          <th data-sort="patient_number" class="col-pn">환자번호</th>
-          <th data-sort="name" class="col-name">이름</th>
-          <th class="col-phone">연락처</th>
-          <th data-sort="visit_type" class="col-visit">구분</th>
-          <th data-sort="preferred_date" class="col-pref">희망일</th>
-          <th data-sort="preferred_time" class="col-ptime">희망시간</th>
-          <th data-sort="status" class="col-status">상태</th>
-          <th data-sort="confirmed_date" class="col-conf">확정 일시</th>
-          <th class="col-msg">문의 내용</th>
-          <th class="col-note">직원 메모</th>
-        </tr>
-      </thead>
-      <tbody id="grid-body"></tbody>
-    </table>
-    <p class="admin-empty" id="empty" hidden>조건에 맞는 예약이 없습니다.</p>
-  </div>
-
-  <div id="agenda-view" class="agenda" hidden></div>
-
-  <div id="calendar-view" class="cv" hidden>
-    <div class="cv__main">
-      <div class="cv__head">
-        <div class="cv__nav">
-          <button type="button" class="a-btn a-btn--ghost cv__arrow" id="cv-prev" aria-label="이전 달">&lsaquo;</button>
-          <h2 id="cv-title" aria-live="polite"></h2>
-          <button type="button" class="a-btn a-btn--ghost cv__arrow" id="cv-next" aria-label="다음 달">&rsaquo;</button>
-          <button type="button" class="a-btn a-btn--ghost" id="cv-today">오늘</button>
+    <!-- Schedule -->
+    <section class="screen" id="screen-schedule" hidden aria-labelledby="schedule-title">
+      <header class="screen__head"><div><h1 id="schedule-title">일정</h1><p class="screen__sub">날짜를 누르면 시간표를 볼 수 있고, 빈 시간을 눌러 바로 예약을 등록할 수 있습니다.</p></div></header>
+      <div id="calendar-view" class="cv">
+          <div class="cv__main">
+            <div class="cv__head">
+              <div class="cv__nav">
+                <button type="button" class="a-btn a-btn--ghost cv__arrow" id="cv-prev" aria-label="이전 달">&lsaquo;</button>
+                <h2 id="cv-title" aria-live="polite"></h2>
+                <button type="button" class="a-btn a-btn--ghost cv__arrow" id="cv-next" aria-label="다음 달">&rsaquo;</button>
+                <button type="button" class="a-btn a-btn--ghost" id="cv-today">오늘</button>
+              </div>
+              <div class="cv__legend" aria-label="색상 안내">
+                <span>여유</span><i class="cv__scale"></i><span>마감</span>
+                <span class="cv__legend-closed"><i></i>휴진</span>
+              </div>
+            </div>
+            <div class="cv__dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+            <div class="cv__grid" id="cv-grid"></div>
+            <p class="cv__note">색은 확정된 예약이 10분 단위 시간표를 얼마나 채웠는지를 나타냅니다. 초록은 비어 있음, 빨강은 모든 시간이 찬 상태입니다.</p>
+          </div>
+          <aside class="cv__side" id="cv-side" aria-live="polite"></aside>
         </div>
-        <div class="cv__legend" aria-label="색상 안내">
-          <span>여유</span><i class="cv__scale"></i><span>마감</span>
-          <span class="cv__legend-closed"><i></i>휴진</span>
+    </section>
+
+    <!-- Full list -->
+    <section class="screen" id="screen-all" hidden aria-labelledby="all-title">
+      <header class="screen__head"><div><h1 id="all-title">전체 목록</h1><p class="screen__sub">모든 예약을 표로 보고, 필터를 걸고, 엑셀로 내려받을 수 있습니다.</p></div></header>
+      <div class="toolbar">
+          <div class="toolbar__row">
+            <label class="search">
+              <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M13 13l4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              <input type="search" id="search" placeholder="이름, 연락처, 환자번호, 메모 검색" autocomplete="off">
+              <kbd>/</kbd>
+            </label>
+            <div class="seg" role="group" aria-label="보기 방식">
+              <button type="button" data-view="table" class="is-active">표</button>
+              <button type="button" data-view="agenda">일별</button>
+            </div>
+            <div class="toolbar__actions">
+              <button type="button" class="a-btn a-btn--ghost" id="refresh" title="새로고침">새로고침</button>
+              <button type="button" class="a-btn a-btn--ghost" id="export">엑셀(.xlsx) 다운로드</button>
+            </div>
+          </div>
+      
+          <div class="toolbar__row toolbar__row--filters">
+            <div class="filter-group">
+              <select id="date-field" aria-label="날짜 기준">
+                <option value="preferred_date">희망일 기준</option>
+                <option value="confirmed_date">확정일 기준</option>
+                <option value="created_date">접수일 기준</option>
+              </select>
+              <div class="presets" role="group" aria-label="기간">
+                <button type="button" data-preset="all" class="is-active">전체</button>
+                <button type="button" data-preset="today">오늘</button>
+                <button type="button" data-preset="tomorrow">내일</button>
+                <button type="button" data-preset="week">이번 주</button>
+                <button type="button" data-preset="month">이번 달</button>
+              </div>
+              <div class="range">
+                <input type="date" id="date-from" aria-label="시작일">
+                <span>~</span>
+                <input type="date" id="date-to" aria-label="종료일">
+              </div>
+            </div>
+            <div class="status-chips" role="group" aria-label="상태">
+              <button type="button" data-status="new" class="chip-s chip-s--new is-on">신규 <b data-count="new"></b></button>
+              <button type="button" data-status="contacted" class="chip-s chip-s--contacted is-on">연락함 <b data-count="contacted"></b></button>
+              <button type="button" data-status="confirmed" class="chip-s chip-s--confirmed is-on">확정 <b data-count="confirmed"></b></button>
+              <button type="button" data-status="cancelled" class="chip-s chip-s--cancelled">취소 <b data-count="cancelled"></b></button>
+            </div>
+          </div>
         </div>
-      </div>
-      <div class="cv__dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
-      <div class="cv__grid" id="cv-grid"></div>
-      <p class="cv__note">색은 확정된 예약이 10분 단위 시간표를 얼마나 채웠는지를 나타냅니다. 초록은 비어 있음, 빨강은 모든 시간이 찬 상태입니다.</p>
-    </div>
-    <aside class="cv__side" id="cv-side" aria-live="polite"></aside>
-  </div>
-</main>
+
+      <div class="form-error" id="list-error" role="alert"></div>
+      
+        <div class="result-line">
+          <span id="result-count"></span>
+          <button type="button" class="link-btn" id="clear-filters" hidden>필터 초기화</button>
+          <button type="button" class="dup-chip" id="dup-filter" hidden></button>
+        </div>
+      
+        <div class="sheet" id="table-view">
+          <table class="grid">
+            <thead>
+              <tr>
+                <th data-sort="created_at" class="col-created">접수일시</th>
+                <th data-sort="patient_number" class="col-pn">환자번호</th>
+                <th data-sort="name" class="col-name">이름</th>
+                <th class="col-phone">연락처</th>
+                <th data-sort="visit_type" class="col-visit">구분</th>
+                <th data-sort="preferred_date" class="col-pref">희망일</th>
+                <th data-sort="preferred_time" class="col-ptime">희망시간</th>
+                <th data-sort="status" class="col-status">상태</th>
+                <th data-sort="confirmed_date" class="col-conf">확정 일시</th>
+                <th class="col-msg">문의 내용</th>
+                <th class="col-note">직원 메모</th>
+              </tr>
+            </thead>
+            <tbody id="grid-body"></tbody>
+          </table>
+          <p class="admin-empty" id="empty" hidden>조건에 맞는 예약이 없습니다.</p>
+        </div>
+      
+        <div id="agenda-view" class="agenda" hidden></div>
+    </section>
+  </main>
+</div>
 
 <!-- Detail drawer -->
 <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>

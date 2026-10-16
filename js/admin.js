@@ -33,7 +33,10 @@
     dateField: "preferred_date",
     from: "", to: "", preset: "all",
     sort: "created_at", dir: "desc",
-    view: "table",
+    screen: "today",      // today | requests | schedule | all
+    allView: "table",     // table | agenda (inside the full list)
+    rt: "new",            // status tab in the requests inbox
+    rq: "",               // search text in the requests inbox
     dupOnly: false,
     openId: null,
     calY: 0, calM: 0, selDay: ""
@@ -85,12 +88,18 @@
   /* ---------- Feedback ---------- */
 
   var toastTimer;
-  function toast(msg, bad, long) {
+  function toast(msg, bad, long, undo) {
     var el = $("toast");
     el.textContent = msg;
-    el.className = "toast is-visible" + (bad ? " toast--bad" : "");
+    if (undo) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "toast__undo"; b.textContent = "실행 취소";
+      b.onclick = function () { el.className = "toast"; undo(); };
+      el.appendChild(b);
+    }
+    el.className = "toast is-visible" + (bad ? " toast--bad" : "") + (undo ? " toast--act" : "");
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { el.className = "toast"; }, long ? 5000 : 2200);
+    toastTimer = setTimeout(function () { el.className = "toast"; }, undo ? 7000 : long ? 5000 : 2200);
   }
 
   // Native <dialog> keeps focus inside and closes on Esc. Resolves "ok", "alt" or "" (cancelled).
@@ -139,14 +148,18 @@
     clearInterval(refreshTimer);
     if (!session) return show("login-view");
     $("admin-email").textContent = session.user.email;
+    $("admin-avatar").textContent = (session.user.email || "?").charAt(0).toUpperCase();
 
     var staff = await db.from("staff").select("user_id").eq("user_id", session.user.id).maybeSingle();
     if (!staff.data) return show("denied-view");
     show("app");
+    var fromHash = (location.hash || "").slice(1);
+    showScreen(["today", "requests", "schedule", "all"].indexOf(fromHash) !== -1 ? fromHash : state.screen);
     await load();
     // New web bookings appear without a manual refresh (paused while a record is being edited).
     refreshTimer = setInterval(function () {
-      if (!document.hidden && !state.openId && !$("dlg").open) load(true);
+      var typing = /INPUT|TEXTAREA|SELECT/.test((document.activeElement || {}).tagName || "");
+      if (!document.hidden && !$("dlg").open && !$("nb-dlg").open && !typing) load(true);
     }, REFRESH_MS);
   }
 
@@ -194,7 +207,7 @@
     attachPatients(); indexSlots();
     if (quiet && rows.length > before) toast("새 예약 요청 " + (rows.length - before) + "건이 들어왔습니다");
     render();
-    if (state.openId) fillDrawer(true);
+    if (state.openId) fillDrawer(!quiet);   // a quiet refresh never overwrites what staff are typing
   }
 
   async function save(id, patch, silent) {
@@ -271,13 +284,7 @@
   }
 
   function render() {
-    var t = today(), wk = weekRange();
-    var active = rows.filter(function (r) { return r.status !== "cancelled"; });
-    var when = function (r) { return r.confirmed_date || r.preferred_date; };
-    $("stat-new").textContent = rows.filter(function (r) { return r.status === "new"; }).length;
-    $("stat-today").textContent = active.filter(function (r) { return when(r) === t; }).length;
-    $("stat-week").textContent = active.filter(function (r) { var d = when(r); return d >= wk[0] && d <= wk[1]; }).length;
-    $("stat-all").textContent = rows.length;
+    var t = today();
     $$("[data-count]").forEach(function (el) {
       var n = rows.filter(function (r) { return r.status === el.dataset.count; }).length;
       el.textContent = n || "";
@@ -298,9 +305,16 @@
       th.setAttribute("aria-sort", th.dataset.sort === state.sort ? (state.dir === "asc" ? "ascending" : "descending") : "none");
     });
 
-    if (state.view === "table") renderTable(list);
-    else if (state.view === "agenda") renderAgenda(list, t);
-    else renderCalendar();
+    var waiting = rows.filter(function (r) { return r.status === "new"; }).length;
+    var todayN = rows.filter(function (r) { return isBlocking(r) && r.confirmed_date === t; }).length;
+    $("badge-requests").textContent = waiting || "";
+    $("badge-today").textContent = todayN || "";
+
+    if (state.screen === "today") renderToday();
+    else if (state.screen === "requests") renderRequests();
+    else if (state.screen === "schedule") renderCalendar();
+    else if (state.allView === "table") renderTable(list);
+    else renderAgenda(list, t);
   }
 
   function renderTable(list) {
@@ -471,22 +485,55 @@
 
   /* ---------- Drawer ---------- */
 
+  var wideMQ = window.matchMedia("(min-width: 1000px)");
+  function isDocked() { return state.screen === "requests" && wideMQ.matches; }
+
+  // On the requests screen the detail sits beside the list; everywhere else it slides over the page.
+  function applyDock() {
+    var d = $("drawer");
+    if (isDocked()) {
+      if (d.parentNode !== $("req-detail")) $("req-detail").appendChild(d);
+      d.classList.add("is-docked");
+      $("drawer-backdrop").hidden = true;
+      var has = !!state.openId;
+      d.classList.toggle("is-open", has);
+      d.setAttribute("aria-hidden", has ? "false" : "true");
+      $("req-empty").hidden = has;
+    } else {
+      if (d.parentNode !== document.body) document.body.appendChild(d);
+      d.classList.remove("is-docked");
+      var open = !!state.openId;
+      d.classList.toggle("is-open", open);
+      d.setAttribute("aria-hidden", open ? "false" : "true");
+      $("drawer-backdrop").hidden = !open;
+    }
+  }
+  wideMQ.addEventListener("change", function () { applyDock(); if (state.screen === "requests") renderRequests(); });
+
+  function markSelected() {
+    $$(".grid tbody tr").forEach(function (tr) { tr.classList.toggle("is-open", tr.dataset.id === state.openId); });
+    $$(".rq").forEach(function (b) {
+      var on = b.dataset.id === state.openId;
+      b.classList.toggle("is-sel", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+  }
+
   function openDrawer(id, toPatient) {
     state.openId = id;
     fillDrawer(true);
-    $("drawer").classList.add("is-open");
-    $("drawer").setAttribute("aria-hidden", "false");
-    $("drawer-backdrop").hidden = false;
-    $$(".grid tbody tr").forEach(function (tr) { tr.classList.toggle("is-open", tr.dataset.id === id); });
-    if (toPatient) $("d-patient").scrollIntoView({ block: "start" }); else $("drawer").focus();
+    applyDock();
+    markSelected();
+    var sel = document.querySelector('.rq[data-id="' + id + '"]');
+    if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: "nearest" });
+    if (toPatient) $("d-patient").scrollIntoView({ block: "start" });
+    else if (!isDocked()) $("drawer").focus();
   }
 
   function closeDrawer() {
     state.openId = null;
-    $("drawer").classList.remove("is-open");
-    $("drawer").setAttribute("aria-hidden", "true");
-    $("drawer-backdrop").hidden = true;
-    $$(".grid tbody tr.is-open").forEach(function (tr) { tr.classList.remove("is-open"); });
+    applyDock();
+    markSelected();
   }
 
   // Fills a time list with every 10-minute slot, marking the ones already taken on that date.
@@ -984,6 +1031,229 @@
     renderCalendar();
   }
 
+  /* ---------- Screens ---------- */
+
+  function showScreen(name, keepSelection) {
+    if (state.screen !== name && !keepSelection && state.openId) state.openId = null;
+    state.screen = name;
+    $$(".screen").forEach(function (sc) { sc.hidden = sc.id !== "screen-" + name; });
+    $$(".side__nav button").forEach(function (b) {
+      var on = b.dataset.screen === name;
+      b.classList.toggle("is-active", on);
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    if (name === "all") setView(state.allView);
+    applyDock();
+    render();
+    if (name === "requests" && !state.openId && isDocked()) {
+      var first = requestList()[0];
+      if (first) openDrawer(first.id);
+    }
+    var main = document.querySelector(".main");
+    if (main) main.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }
+
+  function goRequest(id) {
+    var r = byId(id);
+    state.rt = r && STATUS[r.status] ? r.status : "all";
+    state.rq = ""; $("req-search").value = "";
+    state.openId = id;
+    showScreen("requests", true);
+    openDrawer(id);
+  }
+
+  function ago(ts) {
+    var m = Math.max(0, Math.round((Date.now() - new Date(ts).getTime()) / 60000));
+    if (m < 1) return "방금";
+    if (m < 60) return m + "분 전";
+    var h = Math.floor(m / 60);
+    return h < 24 ? h + "시간 전" : Math.floor(h / 24) + "일 전";
+  }
+  function toMin(t) { return Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)); }
+  function fromMin(m) { return ("0" + Math.floor(m / 60)).slice(-2) + ":" + ("0" + (m % 60)).slice(-2); }
+  function durText(m) { var h = Math.floor(m / 60), r = m % 60; return (h ? h + "시간 " : "") + (r ? r + "분" : "") || "0분"; }
+  function nowKst() { return new Date(Date.now() + 9 * 3600e3).toISOString().slice(11, 16); }
+  function shortWant(r) { return fmtDay(r.preferred_date) + " · " + TIME[r.preferred_time]; }
+
+  /* Today: who is coming in, and what still needs an answer. */
+
+  function renderToday() {
+    var t = today();
+    var parts = fmtDayLong(t).replace(/^\d+년 /, "");
+    $("today-title").textContent = "오늘, " + parts;
+    var appts = rows.filter(function (r) { return isBlocking(r) && r.confirmed_date === t; })
+      .sort(function (a, b) { return a.confirmed_time < b.confirmed_time ? -1 : a.confirmed_time > b.confirmed_time ? 1 : 0; });
+    var waiting = rows.filter(function (r) { return r.status === "new"; })
+      .sort(function (a, b) { return a.created_at < b.created_at ? -1 : 1; });
+    var follow = rows.filter(function (r) { return r.status === "contacted"; })
+      .sort(function (a, b) { return a.preferred_date < b.preferred_date ? -1 : 1; });
+    $("today-sub").textContent = "확정된 예약 " + appts.length + "건 · 답변이 필요한 요청 " + waiting.length + "건";
+
+    var alerts = "";
+    if (closedMap[t]) alerts += '<div class="notice notice--closed"><b>오늘은 휴진입니다</b>' + (closedMap[t].reason ? " · " + esc(closedMap[t].reason) : "") + "</div>";
+    var dupToday = appts.filter(function (r) { return r._dup; });
+    if (dupToday.length) alerts += '<div class="notice notice--alert"><b>중복 예약 ' + dupToday.length + "건</b> 같은 시간에 두 명 이상 예약되어 있습니다.</div>";
+    $("today-alerts").innerHTML = alerts;
+
+    // Timeline with the gaps between appointments shown as bookable time.
+    var startMin = toMin(CLINIC_START), endMin = toMin(CLINIC_END), nowMin = toMin(nowKst());
+    var h = "", cursor = startMin, nextDone = false;
+    function gap(from, to) {
+      if (to - from < 20) return "";
+      return '<div class="tl__row tl__row--gap"><span class="tl__time"></span><span class="tl__dot tl__dot--gap"></span>' +
+        '<button type="button" class="tl__gap" data-gap="' + fromMin(from) + '">' + durText(to - from) + " 비어 있음<span> · 눌러서 예약 등록</span></button></div>";
+    }
+    if (!appts.length) {
+      h = '<div class="empty"><p>오늘 확정된 예약이 없습니다.</p>' +
+        (closedMap[t] ? "" : '<button type="button" class="a-btn" data-gap="' + CLINIC_START + '">예약 등록하기</button>') + "</div>";
+    } else {
+      appts.forEach(function (r) {
+        var m = toMin(fmtTime(r.confirmed_time));
+        if (m > cursor) h += gap(cursor, m);
+        var past = m + 10 <= nowMin, next = !past && !nextDone;
+        if (next) nextDone = true;
+        h += '<div class="tl__row' + (past ? " is-past" : "") + (next ? " is-next" : "") + (r._dup ? " is-dup" : "") + '" data-id="' + r.id + '">' +
+          '<span class="tl__time">' + fmtTime(r.confirmed_time) + '</span><span class="tl__dot"></span>' +
+          '<button type="button" class="tl__card" data-open-id="' + r.id + '">' +
+            '<span class="tl__l1"><b>' + esc(r.name) + '</b><span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span>" +
+              (next ? '<span class="tl__next">다음 예약</span>' : "") + dupBadge(r) + "</span>" +
+            '<span class="tl__l2">' + (r.patient ? esc(r.patient.patient_number) : "환자번호 없음") + " · " + esc(r.phone) +
+              (r.staff_note ? " · " + esc(r.staff_note) : "") + "</span>" +
+          "</button></div>";
+        cursor = Math.max(cursor, m + 10);
+      });
+      h += gap(cursor, endMin);
+    }
+    $("today-timeline").innerHTML = '<div class="tl">' + h + "</div>";
+
+    // Tomorrow, briefly.
+    var tm = addDays(t, 1);
+    var tomorrow = rows.filter(function (r) { return isBlocking(r) && r.confirmed_date === tm; })
+      .sort(function (a, b) { return a.confirmed_time < b.confirmed_time ? -1 : 1; });
+    $("tomorrow-block").innerHTML = tomorrow.length
+      ? '<h2 class="blk-title">내일 <span class="blk-count">' + tomorrow.length + "건</span></h2><div class=\"mini\">" +
+        tomorrow.slice(0, 6).map(function (r) {
+          return '<button type="button" class="mini__row" data-open-id="' + r.id + '"><span class="mini__time">' + fmtTime(r.confirmed_time) + "</span>" +
+            esc(r.name) + '<span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span></button>";
+        }).join("") + (tomorrow.length > 6 ? '<p class="mini__more">외 ' + (tomorrow.length - 6) + "건</p>" : "") + "</div>"
+      : "";
+
+    // Requests waiting for an answer, longest wait first.
+    $("today-new-count").textContent = waiting.length ? waiting.length : "";
+    $("today-queue").innerHTML = waiting.length ? waiting.slice(0, 8).map(function (r) {
+      return '<article class="q" data-id="' + r.id + '">' +
+        '<div class="q__top"><b class="q__name">' + esc(r.name) + '</b><span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + '</span><span class="q__ago">' + ago(r.created_at) + "</span></div>" +
+        '<div class="q__want">' + shortWant(r) + (closedMap[r.preferred_date] ? ' <span class="closed-badge">휴진일</span>' : "") + "</div>" +
+        '<div class="q__phone"><a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + "</a></div>" +
+        (r.message ? '<p class="q__msg">' + esc(r.message) + "</p>" : "") +
+        '<div class="q__actions"><button type="button" class="a-btn" data-act="contacted">연락함으로 표시</button>' +
+        '<button type="button" class="a-btn a-btn--primary" data-act="open">열어서 확정</button></div></article>';
+    }).join("") + (waiting.length > 8 ? '<button type="button" class="link-btn q__more" data-goto="requests">대기 요청 ' + waiting.length + "건 모두 보기</button>" : "")
+      : '<div class="empty empty--ok"><p>답변이 필요한 요청이 없습니다.</p><small>새 요청이 들어오면 여기에 표시됩니다.</small></div>';
+
+    $("today-followup-block").innerHTML = follow.length
+      ? '<h2 class="blk-title">연락 후 확정 대기 <span class="blk-count">' + follow.length + '</span></h2><div class="mini">' +
+        follow.slice(0, 6).map(function (r) {
+          return '<button type="button" class="mini__row" data-goto-id="' + r.id + '"><span class="mini__time mini__time--w">' + fmtDay(r.preferred_date) + "</span>" + esc(r.name) + "</button>";
+        }).join("") + "</div>" : "";
+  }
+
+  async function markContacted(id) {
+    var r = byId(id), prev = r.status;
+    if (!(await save(id, { status: "contacted" }, true))) return;
+    render();
+    toast(esc0(r.name) + "님을 연락함으로 표시했습니다", false, false, async function () {
+      if (await save(id, { status: prev }, true)) render();
+    });
+  }
+  function esc0(v) { return String(v == null ? "" : v); }
+
+  $("screen-today").addEventListener("click", function (e) {
+    var gp = e.target.closest("[data-gap]");
+    if (gp) return openNewBooking({ date: today(), time: gp.dataset.gap });
+    var act = e.target.closest("[data-act]");
+    if (act) {
+      var id = act.closest("[data-id]").dataset.id;
+      return act.dataset.act === "contacted" ? markContacted(id) : goRequest(id);
+    }
+    var go = e.target.closest("[data-goto]");
+    if (go) return showScreen(go.dataset.goto);
+    var gi = e.target.closest("[data-goto-id]");
+    if (gi) return goRequest(gi.dataset.gotoId);
+    var op = e.target.closest("[data-open-id]");
+    if (op) openDrawer(op.dataset.openId);
+  });
+
+  /* Requests: a quick list on the left, the full record on the right. */
+
+  function requestList() {
+    var q = state.rq.toLowerCase(), dq = digits(q);
+    return rows.filter(function (r) {
+      if (state.rt !== "all" && r.status !== state.rt) return false;
+      if (!q) return true;
+      var hay = [r.name, r.patient && r.patient.patient_number, r.message, r.phone, r.email].join(" ").toLowerCase();
+      return hay.indexOf(q) !== -1 || (dq.length >= 3 && digits(r.phone).indexOf(dq) !== -1);
+    }).sort(function (a, b) { return a.created_at < b.created_at ? 1 : -1; });
+  }
+
+  function renderRequests() {
+    $$("#req-tabs button").forEach(function (b) {
+      var k = b.dataset.rt;
+      b.classList.toggle("is-active", k === state.rt);
+      b.setAttribute("aria-selected", k === state.rt ? "true" : "false");
+      var n = k === "all" ? rows.length : rows.filter(function (r) { return r.status === k; }).length;
+      b.querySelector("b").textContent = n || "";
+    });
+    var list = requestList(), box = $("req-list"), keep = box.scrollTop;
+    var emptyMsg = { new: "답변이 필요한 요청이 없습니다.", contacted: "연락 후 확정을 기다리는 요청이 없습니다.", confirmed: "확정된 예약이 없습니다.", cancelled: "취소된 요청이 없습니다.", all: "요청이 없습니다." };
+    box.innerHTML = list.length ? list.map(function (r) {
+      return '<button type="button" class="rq' + (r.id === state.openId ? " is-sel" : "") + '" role="option" aria-selected="' + (r.id === state.openId) + '" data-id="' + r.id + '">' +
+        '<span class="rq__dot dot--' + r.status + '" title="' + STATUS[r.status] + '"></span>' +
+        '<span class="rq__body"><span class="rq__l1"><b>' + esc(r.name) + '</b><span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span>" +
+          (r.source === "staff" ? '<span class="src-tag">직접</span>' : "") + dupBadge(r) + "</span>" +
+          '<span class="rq__l2">' + (r.status === "confirmed" && r.confirmed_date ? "확정 " + fmtDay(r.confirmed_date) + (r.confirmed_time ? " " + fmtTime(r.confirmed_time) : "") : shortWant(r)) + "</span></span>" +
+        '<span class="rq__ago">' + ago(r.created_at) + "</span></button>";
+    }).join("") : '<div class="empty"><p>' + (state.rq ? "검색 결과가 없습니다." : emptyMsg[state.rt]) + "</p></div>";
+    box.scrollTop = keep;
+  }
+
+  function stepRequest(dir) {
+    var list = requestList();
+    if (!list.length) return;
+    var i = list.findIndex(function (r) { return r.id === state.openId; });
+    var next = list[Math.min(list.length - 1, Math.max(0, i === -1 ? 0 : i + dir))];
+    if (next) openDrawer(next.id);
+  }
+
+  $("req-list").addEventListener("click", function (e) {
+    var b = e.target.closest(".rq");
+    if (b) openDrawer(b.dataset.id);
+  });
+  $("req-tabs").addEventListener("click", function (e) {
+    var b = e.target.closest("button");
+    if (!b) return;
+    state.rt = b.dataset.rt;
+    state.openId = null;
+    applyDock(); render();
+    var first = requestList()[0];
+    if (first && isDocked()) openDrawer(first.id);
+  });
+  var reqSearchTimer;
+  $("req-search").addEventListener("input", function (e) {
+    clearTimeout(reqSearchTimer);
+    reqSearchTimer = setTimeout(function () { state.rq = e.target.value.trim(); renderRequests(); }, 120);
+  });
+
+  $$(".side__nav button").forEach(function (b) {
+    b.addEventListener("click", function () { showScreen(b.dataset.screen); });
+  });
+  window.addEventListener("hashchange", function () {
+    var h = (location.hash || "").slice(1);
+    if (!$("app").hidden && ["today", "requests", "schedule", "all"].indexOf(h) !== -1 && h !== state.screen) showScreen(h);
+  });
+
   /* ---------- Filters UI ---------- */
 
   function setPreset(p) {
@@ -1005,12 +1275,9 @@
   }
 
   function setView(v) {
-    state.view = v;
+    state.allView = v;
     $("table-view").hidden = v !== "table";
     $("agenda-view").hidden = v !== "agenda";
-    $("calendar-view").hidden = v !== "calendar";
-    document.querySelector(".toolbar").classList.toggle("is-cal", v === "calendar");
-    $$(".result-line").forEach(function (el) { el.hidden = v === "calendar"; });
     $$(".seg button").forEach(function (b) { b.classList.toggle("is-active", b.dataset.view === v); });
   }
 
@@ -1024,8 +1291,15 @@
 
   document.addEventListener("keydown", function (e) {
     var typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
-    if (e.key === "/" && !typing && !$("app").hidden && !$("dlg").open) { e.preventDefault(); $("search").focus(); }
-    if (e.key === "Escape" && state.openId && !$("dlg").open) closeDrawer();
+    if (e.key === "/" && !typing && !$("app").hidden && !$("dlg").open && !$("nb-dlg").open) {
+      e.preventDefault();
+      if (state.screen !== "requests" && state.screen !== "all") showScreen("requests");
+      (state.screen === "all" ? $("search") : $("req-search")).focus();
+    }
+    if ((e.key === "ArrowDown" || e.key === "ArrowUp") && state.screen === "requests" && !typing && !$("dlg").open && !$("nb-dlg").open) {
+      e.preventDefault(); stepRequest(e.key === "ArrowDown" ? 1 : -1);
+    }
+    if (e.key === "Escape" && state.openId && !$("dlg").open && !isDocked()) closeDrawer();
   });
 
   $("date-field").addEventListener("change", function (e) { state.dateField = e.target.value; render(); });
@@ -1047,20 +1321,6 @@
       state.dupOnly = false;
       state.statuses[b.dataset.status] = !state.statuses[b.dataset.status];
       b.classList.toggle("is-on", state.statuses[b.dataset.status]);
-      render();
-    });
-  });
-
-  $$(".stats .stat").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var s = b.dataset.stat;
-      $("search").value = ""; state.q = ""; state.dupOnly = false;
-      if (s === "new") { setStatuses(["new"]); setPreset("all"); }
-      else if (s === "today" || s === "week") {
-        setStatuses(null);
-        $("date-field").value = state.dateField = "preferred_date";
-        setPreset(s);
-      } else { setStatuses(["new", "contacted", "confirmed", "cancelled"]); setPreset("all"); }
       render();
     });
   });
@@ -1169,7 +1429,7 @@
     if (open) openDrawer(open.dataset.id);
   });
 
-  $("new-booking").addEventListener("click", function () { openNewBooking({ date: state.view === "calendar" ? state.selDay : today() }); });
+  $("new-booking").addEventListener("click", function () { openNewBooking({ date: state.screen === "schedule" ? state.selDay : today() }); });
   $("nb-cancel").addEventListener("click", function () { $("nb-dlg").close(); });
   $("nb-form").addEventListener("submit", function (e) { e.preventDefault(); submitNewBooking(); });
   ["nb-name", "nb-phone", "nb-email"].forEach(function (id) { $(id).addEventListener("input", nbRefresh); });
