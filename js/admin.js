@@ -116,10 +116,11 @@
     });
   }
 
-  function loadScript(src) {
+  function loadScript(src, integrity) {
     return new Promise(function (resolve, reject) {
       var s = document.createElement("script");
-      s.src = src; s.onload = resolve; s.onerror = function () { reject(new Error("load failed")); };
+      s.src = src; s.onload = resolve;
+      if (integrity) { s.integrity = integrity; s.crossOrigin = "anonymous"; } s.onerror = function () { reject(new Error("load failed")); };
       document.head.appendChild(s);
     });
   }
@@ -412,13 +413,35 @@
     await linkPatient(r, res.data);
   }
 
+  $("d-patient-body").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.id === "pt-manual-input") {
+      e.preventDefault();
+      var go = document.querySelector('#d-patient-body [data-act="manual"]');
+      if (go) go.click();
+    }
+  });
+
   $("d-patient-body").addEventListener("click", async function (e) {
     var b = e.target.closest("[data-act]");
     var r = byId(state.openId);
     if (!b || !r) return;
     var act = b.dataset.act;
     if (act === "link") return linkPatient(r, patientById(b.dataset.pid));
-    if (act === "new") return createPatient(r, null);
+    if (act === "new") {
+      // A patient with this phone number may already have a number; make staff confirm a second one.
+      var same = suggestionsFor(r).filter(function (x) { return x.why === "연락처 일치"; });
+      if (same.length) {
+        var go = await ask({
+          title: "같은 연락처의 환자가 이미 있습니다",
+          html: "<p>이 연락처로 등록된 환자가 있습니다.</p><ul class=\"dlg__list\">" +
+            same.map(function (x) { return "<li><b>" + esc(x.p.patient_number) + "</b> " + esc(x.p.name) + "</li>"; }).join("") +
+            "</ul><p>같은 환자라면 목록에서 <b>연결</b>을 선택해 같은 번호를 유지해 주세요. 가족 등 다른 환자라면 새 번호를 발급하세요.</p>",
+          ok: "다른 환자입니다. 새 번호 발급", cancel: "돌아가기"
+        });
+        if (go !== "ok") return;
+      }
+      return createPatient(r, null);
+    }
     if (act === "goto") return openDrawer(b.dataset.id);
     if (act === "unlink") {
       var ok = await ask({
@@ -741,7 +764,7 @@
     var btn = $("export");
     btn.disabled = true; btn.textContent = "파일 만드는 중...";
     try {
-      if (!window.ExcelJS) await loadScript(EXCELJS_URL);
+      if (!window.ExcelJS) await loadScript(EXCELJS_URL, "sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz");
       var wb = new ExcelJS.Workbook();
       wb.creator = "스펙트럼 채정호 정신건강의학과의원";
       wb.created = new Date();

@@ -60,8 +60,13 @@ document.addEventListener("DOMContentLoaded", function () {
       document.getElementById("cal-picked").textContent = "";
     }
     firstOpen = findFirstOpen();
-    document.getElementById("soonest-date").textContent = longDate(firstOpen);
-    document.getElementById("soonest").hidden = false;
+    var anyOpen = firstOpen <= lastDay;
+    document.getElementById("soonest-date").textContent = anyOpen ? longDate(firstOpen) : "";
+    document.getElementById("soonest").hidden = !anyOpen;
+    if (!anyOpen) {
+      document.getElementById("cal-opening").textContent = "현재 온라인으로 예약 가능한 날짜가 없습니다. 전화로 문의해 주세요.";
+      firstOpen = firstDay;
+    }
     if (!dateInput.value) view = { y: Number(firstOpen.slice(0, 4)), m: Number(firstOpen.slice(5, 7)) - 1 };
     renderCal();
   }
@@ -193,6 +198,12 @@ document.addEventListener("DOMContentLoaded", function () {
             // The clinic closed that day after the page loaded: refresh the calendar and say so.
             loadClosed().then(applyClosed);
             showError("선택하신 날짜는 휴진입니다. 다른 날짜를 선택해 주세요.");
+            submit.disabled = false;
+            submit.textContent = "예약 신청하기";
+            return;
+          }
+          if (res.status === 429) {
+            showError("짧은 시간에 요청이 많이 접수되었습니다. 잠시 후 다시 시도하시거나 전화로 문의해 주세요.");
             submit.disabled = false;
             submit.textContent = "예약 신청하기";
             return;
