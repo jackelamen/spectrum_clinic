@@ -14,6 +14,8 @@ document.addEventListener("DOMContentLoaded", function () {
      Other weekdays inside the window show as fully booked ("마감").
      OPENING_DATE: no bookings before the clinic opens.
      The reservation server function enforces the same three values. */
+  var SUPABASE_URL = "https://pnsufyerzcestmmfnqks.supabase.co";
+  var closed = {};   // dates staff have marked as closed (loaded below)
   var OPEN_DAYS = [1, 2, 3];
   var OPENING_DATE = "2027-03-14";
   var WINDOW_DAYS = 90;
@@ -29,12 +31,16 @@ document.addEventListener("DOMContentLoaded", function () {
   var firstDay = today > OPENING_DATE ? today : OPENING_DATE;
   var lastDay = addDays(firstDay, WINDOW_DAYS);
   function inWindow(s) { return s >= firstDay && s <= lastDay; }
-  function isOpen(s) { return inWindow(s) && OPEN_DAYS.indexOf(dow(s)) !== -1; }
+  function isOpen(s) { return inWindow(s) && OPEN_DAYS.indexOf(dow(s)) !== -1 && !closed[s]; }
 
   var firstOpen = firstDay;
-  while (!isOpen(firstOpen)) firstOpen = addDays(firstOpen, 1);
+  function findFirstOpen() {
+    var d = firstDay;
+    while (d <= lastDay && !isOpen(d)) d = addDays(d, 1);
+    return d;
+  }
   var minMonth = firstDay.slice(0, 7);
-  var view = { y: Number(firstOpen.slice(0, 4)), m: Number(firstOpen.slice(5, 7)) - 1 };
+  var view = { y: Number(firstDay.slice(0, 4)), m: Number(firstDay.slice(5, 7)) - 1 };
 
   var grid = document.getElementById("cal-grid");
   var prev = document.getElementById("cal-prev");
@@ -44,7 +50,30 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("cal-opening").textContent =
       Number(OPENING_DATE.slice(0, 4)) + "년 " + Number(OPENING_DATE.slice(5, 7)) + "월 " + Number(OPENING_DATE.slice(8, 10)) + "일 개원 예정이며, 개원일 이후 날짜로 예약하실 수 있습니다.";
   }
-  document.getElementById("soonest-date").textContent = longDate(firstOpen);
+
+  // Called once the list of closed days has loaded (or failed to load).
+  function applyClosed(list) {
+    closed = {};
+    (list || []).forEach(function (r) { closed[r.day] = true; });
+    if (dateInput.value && !isOpen(dateInput.value)) {
+      dateInput.value = "";
+      document.getElementById("cal-picked").textContent = "";
+    }
+    firstOpen = findFirstOpen();
+    document.getElementById("soonest-date").textContent = longDate(firstOpen);
+    document.getElementById("soonest").hidden = false;
+    if (!dateInput.value) view = { y: Number(firstOpen.slice(0, 4)), m: Number(firstOpen.slice(5, 7)) - 1 };
+    renderCal();
+  }
+  function loadClosed() {
+    var ctl = new AbortController();
+    var timer = setTimeout(function () { ctl.abort(); }, 3000);
+    return fetch(SUPABASE_URL + "/rest/v1/closed_days?select=day&day=gte." + today, {
+      headers: { apikey: PUBLISHABLE_KEY }, signal: ctl.signal
+    }).then(function (r) { return r.ok ? r.json() : []; })
+      .catch(function () { return []; })
+      .then(function (list) { clearTimeout(timer); return list; });
+  }
 
   function renderCal() {
     document.getElementById("cal-title").textContent = view.y + "년 " + (view.m + 1) + "월";
@@ -55,15 +84,16 @@ document.addEventListener("DOMContentLoaded", function () {
     for (var d = 1; d <= days; d++) {
       var s = iso(view.y, view.m, d);
       var open = isOpen(s);
-      var full = !open && inWindow(s);
+      var shut = !!closed[s] && inWindow(s);
+      var full = !open && inWindow(s) && !shut;
       var picked = s === dateInput.value;
       var soon = s === firstOpen;
-      var cls = "cal__day" + (open ? " is-open" : "") + (full ? " is-full" : "") + (soon ? " is-soonest" : "") +
+      var cls = "cal__day" + (open ? " is-open" : "") + (full ? " is-full" : "") + (shut ? " is-shut" : "") + (soon ? " is-soonest" : "") +
         (s === today ? " is-today" : "") + (picked ? " is-selected" : "");
-      var label = (view.m + 1) + "월 " + d + "일 " + DOW[dow(s)] + "요일" + (open ? "" : full ? ", 예약 마감" : ", 예약 불가");
+      var label = (view.m + 1) + "월 " + d + "일 " + DOW[dow(s)] + "요일" + (open ? "" : shut ? ", 휴진" : full ? ", 예약 마감" : ", 예약 불가");
       html += '<button type="button" class="' + cls + '" data-date="' + s + '"' +
         (open ? "" : " disabled") + (picked ? ' aria-pressed="true"' : "") + ' aria-label="' + label + '">' +
-        '<span class="cal__num">' + d + "</span>" + (full ? '<span class="cal__full">마감</span>' : "") + (soon ? '<span class="cal__soon">가장 빠름</span>' : "") + "</button>";
+        '<span class="cal__num">' + d + "</span>" + (full ? '<span class="cal__full">마감</span>' : "") + (shut ? '<span class="cal__shut">휴진</span>' : "") + (soon ? '<span class="cal__soon">가장 빠름</span>' : "") + "</button>";
     }
     grid.innerHTML = html;
     prev.disabled = iso(view.y, view.m, 1).slice(0, 7) <= minMonth;
@@ -99,7 +129,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (next) { next.scrollIntoView({ behavior: "smooth", block: "center" }); next.focus({ preventScroll: true }); }
     else document.getElementById("cal-picked").scrollIntoView({ behavior: "smooth", block: "center" });
   });
-  renderCal();
+  loadClosed().then(applyClosed);
 
   // Format phone as 010-1234-5678 while typing.
   phoneInput.addEventListener("input", function () {
@@ -153,9 +183,22 @@ document.addEventListener("DOMContentLoaded", function () {
       body: JSON.stringify(data)
     })
       .then(function (res) {
-        if (!res.ok) throw new Error(res.status);
-        card.classList.add("is-done");
-        card.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (res.ok) {
+          card.classList.add("is-done");
+          card.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+        return res.json().catch(function () { return {}; }).then(function (body) {
+          if (body.error === "closed") {
+            // The clinic closed that day after the page loaded: refresh the calendar and say so.
+            loadClosed().then(applyClosed);
+            showError("선택하신 날짜는 휴진입니다. 다른 날짜를 선택해 주세요.");
+            submit.disabled = false;
+            submit.textContent = "예약 신청하기";
+            return;
+          }
+          throw new Error(res.status);
+        });
       })
       .catch(function () {
         showError("일시적인 오류로 접수되지 않았습니다. 잠시 후 다시 시도해 주시거나 전화로 문의해 주세요.");

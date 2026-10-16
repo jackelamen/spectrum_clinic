@@ -83,6 +83,7 @@
       </label>
       <div class="seg" role="group" aria-label="보기 방식">
         <button type="button" data-view="table" class="is-active">표</button>
+        <button type="button" data-view="calendar">달력</button>
         <button type="button" data-view="agenda">일별</button>
       </div>
       <div class="toolbar__actions">
@@ -151,6 +152,27 @@
   </div>
 
   <div id="agenda-view" class="agenda" hidden></div>
+
+  <div id="calendar-view" class="cv" hidden>
+    <div class="cv__main">
+      <div class="cv__head">
+        <div class="cv__nav">
+          <button type="button" class="a-btn a-btn--ghost cv__arrow" id="cv-prev" aria-label="이전 달">&lsaquo;</button>
+          <h2 id="cv-title" aria-live="polite"></h2>
+          <button type="button" class="a-btn a-btn--ghost cv__arrow" id="cv-next" aria-label="다음 달">&rsaquo;</button>
+          <button type="button" class="a-btn a-btn--ghost" id="cv-today">오늘</button>
+        </div>
+        <div class="cv__legend" aria-label="색상 안내">
+          <span>여유</span><i class="cv__scale"></i><span>마감</span>
+          <span class="cv__legend-closed"><i></i>휴진</span>
+        </div>
+      </div>
+      <div class="cv__dow"><span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span></div>
+      <div class="cv__grid" id="cv-grid"></div>
+      <p class="cv__note">색은 확정된 예약이 10분 단위 시간표를 얼마나 채웠는지를 나타냅니다. 초록은 비어 있음, 빨강은 모든 시간이 찬 상태입니다.</p>
+    </div>
+    <aside class="cv__side" id="cv-side" aria-live="polite"></aside>
+  </div>
 </main>
 
 <!-- Detail drawer -->

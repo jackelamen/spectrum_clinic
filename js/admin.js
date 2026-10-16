@@ -25,6 +25,8 @@
 
   var rows = [];
   var patients = [];
+  var closedMap = {};     // date -> { day, reason }: days the clinic is closed
+  var CAPACITY = 0;       // set below: one appointment per 10-minute slot
   var state = {
     q: "",
     statuses: { new: true, contacted: true, confirmed: true, cancelled: false },
@@ -33,7 +35,8 @@
     sort: "created_at", dir: "desc",
     view: "table",
     dupOnly: false,
-    openId: null
+    openId: null,
+    calY: 0, calM: 0, selDay: ""
   };
 
   /* ---------- Dates and times (Korea time) ---------- */
@@ -76,6 +79,9 @@
     return out;
   })();
 
+  CAPACITY = SLOTS.length;
+  (function () { var t = today(); state.calY = Number(t.slice(0, 4)); state.calM = Number(t.slice(5, 7)) - 1; state.selDay = t; })();
+
   /* ---------- Feedback ---------- */
 
   var toastTimer;
@@ -88,9 +94,11 @@
   }
 
   // Native <dialog> keeps focus inside and closes on Esc. Resolves "ok", "alt" or "" (cancelled).
+  // Answers come from the buttons themselves, so nothing depends on the dialog's close event.
   function ask(o) {
     return new Promise(function (resolve) {
-      var d = $("dlg");
+      var d = $("dlg"), done = false;
+      function finish(v) { if (!done) { done = true; resolve(v); } }
       $("dlg-title").textContent = o.title;
       $("dlg-body").innerHTML = o.html || "";
       $("dlg-ok").textContent = o.ok || "확인";
@@ -98,8 +106,12 @@
       $("dlg-cancel").textContent = o.cancel || "취소";
       $("dlg-alt").hidden = !o.alt;
       $("dlg-alt").textContent = o.alt || "";
+      $("dlg-ok").onclick = function () { finish("ok"); };
+      $("dlg-alt").onclick = function () { finish("alt"); };
+      $("dlg-cancel").onclick = function () { finish(""); };
+      d.oncancel = function () { finish(""); };
+      d.onclose = function () { finish(d.returnValue === "cancel" ? "" : d.returnValue); };
       d.returnValue = "";
-      d.onclose = function () { resolve(d.returnValue === "cancel" ? "" : d.returnValue); };
       d.showModal();
     });
   }
@@ -165,15 +177,18 @@
     $("list-error").classList.remove("is-visible");
     var out = await Promise.all([
       db.from("reservation_requests").select("*").order("created_at", { ascending: false }).limit(1000),
-      db.from("patients").select("*").order("created_at", { ascending: false }).limit(5000)
+      db.from("patients").select("*").order("created_at", { ascending: false }).limit(5000),
+      db.from("closed_days").select("*")
     ]);
-    if (out[0].error || out[1].error) {
+    if (out[0].error || out[1].error || out[2].error) {
       $("list-error").textContent = "예약 목록을 불러오지 못했습니다. 새로고침해 주세요.";
       $("list-error").classList.add("is-visible");
       return;
     }
     var before = rows.length;
     patients = out[1].data;
+    closedMap = {};
+    out[2].data.forEach(function (c) { closedMap[c.day] = c; });
     rows = out[0].data.map(function (r) { r.created_date = kstDate(new Date(r.created_at)); return r; });
     attachPatients(); indexSlots();
     if (quiet && rows.length > before) toast("새 예약 요청 " + (rows.length - before) + "건이 들어왔습니다");
@@ -282,7 +297,9 @@
       th.setAttribute("aria-sort", th.dataset.sort === state.sort ? (state.dir === "asc" ? "ascending" : "descending") : "none");
     });
 
-    if (state.view === "table") renderTable(list); else renderAgenda(list, t);
+    if (state.view === "table") renderTable(list);
+    else if (state.view === "agenda") renderAgenda(list, t);
+    else renderCalendar();
   }
 
   function renderTable(list) {
@@ -324,6 +341,7 @@
       var rel = relDay(d);
       return '<section class="day' + (d < t ? " day--past" : "") + (d === t ? " day--today" : "") + '">' +
         '<h3 class="day__head">' + fmtDayLong(d) + (rel ? ' <span class="rel">' + rel + "</span>" : "") +
+        (closedMap[d] ? ' <span class="closed-badge">휴진</span>' : "") +
         '<span class="day__count">' + items.length + "건</span></h3>" +
         items.map(function (r) {
           var time = r.confirmed_time ? fmtTime(r.confirmed_time) : TIME[r.preferred_time];
@@ -543,6 +561,14 @@
       openDrawer(r.id);
       return false;
     }
+    if (closedMap[date]) {
+      var open = await ask({
+        title: "휴진으로 지정된 날입니다",
+        html: "<p><b>" + fmtDayLong(date) + "</b>은 휴진" + (closedMap[date].reason ? " (" + esc(closedMap[date].reason) + ")" : "") + "으로 지정되어 있습니다.</p><p>그래도 이 날짜로 확정하시겠습니까?</p>",
+        ok: "그래도 확정", danger: true, cancel: "다른 날짜 고르기"
+      });
+      if (open !== "ok") return false;
+    }
     var clash = rows.filter(function (x) {
       return x.id !== r.id && isBlocking(x) && x.confirmed_date === date && fmtTime(x.confirmed_time) === time;
     });
@@ -654,6 +680,165 @@
     btn.disabled = false; btn.textContent = "엑셀(.xlsx) 다운로드";
   }
 
+  /* ---------- Calendar ---------- */
+
+  // Busyness = share of the day's 10-minute slots taken by confirmed appointments.
+  var LEVELS = [
+    { max: 0.34, name: "여유" },
+    { max: 0.67, name: "보통" },
+    { max: 1, name: "혼잡" },
+    { max: Infinity, name: "마감" }
+  ];
+  function level(ratio) { return LEVELS.filter(function (l) { return ratio < l.max; })[0] || LEVELS[3]; }
+  function hue(ratio) { return Math.round(140 * (1 - Math.min(ratio, 1))); }   // 140 green -> 0 red
+
+  function dayStats() {
+    var m = {};
+    var get = function (d) { return (m[d] = m[d] || { slots: {}, appts: 0, pending: 0 }); };
+    rows.forEach(function (r) {
+      if (isBlocking(r)) { var d = get(r.confirmed_date); d.slots[fmtTime(r.confirmed_time)] = 1; d.appts++; }
+      else if (r.status === "new" || r.status === "contacted") get(r.preferred_date).pending++;
+    });
+    Object.keys(m).forEach(function (k) { m[k].used = Object.keys(m[k].slots).length; });
+    return m;
+  }
+
+  function renderCalendar() {
+    var y = state.calY, mo = state.calM, t = today();
+    $("cv-title").textContent = y + "년 " + (mo + 1) + "월";
+    var stats = dayStats();
+    var lead = new Date(Date.UTC(y, mo, 1)).getUTCDay();
+    var days = new Date(Date.UTC(y, mo + 1, 0)).getUTCDate();
+    var html = "";
+    for (var i = 0; i < lead; i++) html += '<span class="cv__blank"></span>';
+    for (var d = 1; d <= days; d++) {
+      var date = y + "-" + ("0" + (mo + 1)).slice(-2) + "-" + ("0" + d).slice(-2);
+      var st = stats[date] || { used: 0, appts: 0, pending: 0 };
+      var ratio = st.used / CAPACITY, lv = level(ratio), shut = closedMap[date];
+      var cls = "cv__day" + (date === t ? " is-today" : "") + (date === state.selDay ? " is-sel" : "") +
+        (shut ? " is-closed" : "") + (date < t ? " is-past" : "");
+      html += '<button type="button" class="' + cls + '" data-date="' + date + '" style="--h:' + hue(ratio) + '" ' +
+        'aria-label="' + (mo + 1) + "월 " + d + "일 " + DAYS[weekday(date)] + "요일, " + (shut ? "휴진" : lv.name + ", 확정 " + st.appts + "건") +
+        (st.pending ? ", 요청 " + st.pending + "건" : "") + '">' +
+        '<span class="cv__n">' + d + "</span>" +
+        '<span class="cv__tag">' + (shut ? "휴진" : lv.name) + "</span>" +
+        '<span class="cv__counts">' + (shut ? (shut.reason ? esc(shut.reason) : "") :
+          (st.appts ? "<b>확정 " + st.appts + "</b>" : "") + (st.pending ? "<i>요청 " + st.pending + "</i>" : "")) + "</span>" +
+        '<span class="cv__bar"><span style="width:' + Math.min(100, Math.round(ratio * 100)) + '%"></span></span>' +
+      "</button>";
+    }
+    $("cv-grid").innerHTML = html;
+    renderDayPanel(stats);
+  }
+
+  function renderDayPanel(stats) {
+    var date = state.selDay;
+    var el = $("cv-side");
+    if (!date) { el.innerHTML = '<p class="admin-empty">날짜를 선택해 주세요.</p>'; return; }
+    stats = stats || dayStats();
+    var st = stats[date] || { used: 0, appts: 0, pending: 0 };
+    var ratio = st.used / CAPACITY, lv = level(ratio), shut = closedMap[date];
+    var rel = relDay(date);
+    var appts = rows.filter(function (r) { return isBlocking(r) && r.confirmed_date === date; });
+    var pend = rows.filter(function (r) { return (r.status === "new" || r.status === "contacted") && r.preferred_date === date; });
+    var byTime = {};
+    appts.forEach(function (r) { (byTime[fmtTime(r.confirmed_time)] = byTime[fmtTime(r.confirmed_time)] || []).push(r); });
+
+    var h = '<div class="dp__head"><h3>' + fmtDayLong(date) + (rel ? ' <span class="rel">' + rel + "</span>" : "") + "</h3>" +
+      (shut ? '<span class="closed-badge">휴진</span>' :
+        '<span class="dp__state" style="--h:' + hue(ratio) + '">' + lv.name + " · " + st.used + "/" + CAPACITY + "칸</span>") + "</div>";
+
+    if (shut) {
+      h += '<div class="dp__closed"><b>휴진</b>' + (shut.reason ? " · " + esc(shut.reason) : "") +
+        '<button type="button" class="a-btn" data-act="reopen">휴진 해제</button></div>';
+    } else {
+      h += '<button type="button" class="a-btn a-btn--block dp__close" data-act="close">이 날 휴진으로 지정</button>';
+    }
+    if (shut && (appts.length || pend.length)) {
+      h += '<div class="d-dup"><b>확인 필요</b> 휴진일에 확정 예약 ' + appts.length + "건, 대기 요청 " + pend.length + "건이 있습니다. 환자분께 일정 변경을 안내해 주세요.</div>";
+    }
+
+    // 10-minute timetable, one row per hour.
+    h += '<h4 class="dp__sub">시간표 <span>(10분 단위)</span></h4><div class="tt' + (shut ? " is-closed" : "") + '">';
+    var hours = {}, hourOrder = [];
+    SLOTS.forEach(function (sl) {
+      var hh = sl.slice(0, 2);
+      if (!hours[hh]) { hours[hh] = []; hourOrder.push(hh); }   // keep clock order, not object-key order
+      hours[hh].push(sl);
+    });
+    hourOrder.forEach(function (hh) {
+      h += '<div class="tt__row"><span class="tt__h">' + hh + "시</span><div class=\"tt__cells\">";
+      hours[hh].forEach(function (sl) {
+        var list = byTime[sl];
+        if (!list) { h += '<span class="tt__slot" title="' + sl + ' 비어 있음">' + sl.slice(3) + "</span>"; return; }
+        var dup = list.length > 1;
+        h += '<button type="button" class="tt__slot is-booked' + (dup ? " is-dup" : "") + '" data-id="' + list[0].id + '" title="' + sl + " " +
+          esc(list.map(function (x) { return x.name; }).join(", ")) + (dup ? " (중복 예약)" : "") + '">' +
+          '<small>' + sl.slice(3) + "</small>" + esc(list[0].name) + (dup ? " +" + (list.length - 1) : "") + "</button>";
+      });
+      h += "</div></div>";
+    });
+    h += "</div>";
+
+    // Rows that fall outside the timetable (older confirmations) still need to be reachable.
+    var stray = appts.filter(function (r) { return SLOTS.indexOf(fmtTime(r.confirmed_time)) === -1; });
+    if (stray.length) {
+      h += '<p class="dp__stray">시간표 밖 예약: ' + stray.map(function (r) {
+        return '<button type="button" class="pt-other" data-id="' + r.id + '">' + fmtTime(r.confirmed_time) + " " + esc(r.name) + "</button>";
+      }).join(" ") + "</p>";
+    }
+
+    h += '<h4 class="dp__sub">이 날을 희망한 요청 <span>(' + pend.length + "건)</span></h4>";
+    h += pend.length ? '<div class="dp__list">' + pend.map(function (r) {
+      return '<button type="button" class="dp__req" data-id="' + r.id + '"><b>' + esc(r.name) + "</b>" +
+        '<span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span>" +
+        '<span class="dp__win">' + TIME[r.preferred_time] + "</span>" +
+        '<span class="st-badge st--' + r.status + '">' + STATUS[r.status] + "</span></button>";
+    }).join("") + "</div>" : '<p class="pt-none">대기 중인 요청이 없습니다.</p>';
+    el.innerHTML = h;
+  }
+
+  async function closeDay(date) {
+    var appts = rows.filter(function (r) { return isBlocking(r) && r.confirmed_date === date; });
+    var pend = rows.filter(function (r) { return (r.status === "new" || r.status === "contacted") && r.preferred_date === date; });
+    var warn = appts.length || pend.length
+      ? '<div class="d-dup"><b>확인 필요</b> 이 날 확정 예약 ' + appts.length + "건, 대기 요청 " + pend.length +
+        "건이 있습니다. 휴진으로 지정해도 예약이 자동으로 취소되거나 환자분께 안내되지는 않습니다.</div>" : "";
+    var ok = await ask({
+      title: fmtDayLong(date) + "을 휴진으로 지정할까요?",
+      html: "<p>휴진으로 지정하면 환자 예약 화면에서 이 날짜가 선택되지 않습니다.</p>" + warn +
+        '<label class="dlg__field">사유 (선택, 환자에게는 보이지 않습니다)<input type="text" id="closed-reason" maxlength="100" placeholder="예: 학회 참석"></label>',
+      ok: "휴진으로 지정", danger: true
+    });
+    if (ok !== "ok") return;
+    var reason = ($("closed-reason").value || "").trim() || null;
+    var res = await db.from("closed_days").insert({ day: date, reason: reason }).select().single();
+    if (res.error) { toast("휴진으로 지정하지 못했습니다. 다시 시도해 주세요.", true); return; }
+    closedMap[date] = res.data;
+    toast("휴진으로 지정했습니다");
+    render();
+  }
+
+  async function reopenDay(date) {
+    var ok = await ask({
+      title: "휴진을 해제할까요?",
+      html: "<p><b>" + fmtDayLong(date) + "</b>이 다시 예약 가능한 날이 됩니다. (월~수 외의 요일은 계속 예약이 제한됩니다.)</p>",
+      ok: "휴진 해제"
+    });
+    if (ok !== "ok") return;
+    var res = await db.from("closed_days").delete().eq("day", date);
+    if (res.error) { toast("휴진을 해제하지 못했습니다. 다시 시도해 주세요.", true); return; }
+    delete closedMap[date];
+    toast("휴진을 해제했습니다");
+    render();
+  }
+
+  function shiftCal(n) {
+    var d = new Date(Date.UTC(state.calY, state.calM + n, 1));
+    state.calY = d.getUTCFullYear(); state.calM = d.getUTCMonth();
+    renderCalendar();
+  }
+
   /* ---------- Filters UI ---------- */
 
   function setPreset(p) {
@@ -678,6 +863,9 @@
     state.view = v;
     $("table-view").hidden = v !== "table";
     $("agenda-view").hidden = v !== "agenda";
+    $("calendar-view").hidden = v !== "calendar";
+    document.querySelector(".toolbar").classList.toggle("is-cal", v === "calendar");
+    $$(".result-line").forEach(function (el) { el.hidden = v === "calendar"; });
     $$(".seg button").forEach(function (b) { b.classList.toggle("is-active", b.dataset.view === v); });
   }
 
@@ -819,6 +1007,27 @@
   $("d-note").addEventListener("change", async function (e) {
     var r = byId(state.openId);
     if (await save(r.id, { staff_note: e.target.value.trim() || null })) render();
+  });
+
+  $("cv-prev").addEventListener("click", function () { shiftCal(-1); });
+  $("cv-next").addEventListener("click", function () { shiftCal(1); });
+  $("cv-today").addEventListener("click", function () {
+    var t = today();
+    state.calY = Number(t.slice(0, 4)); state.calM = Number(t.slice(5, 7)) - 1; state.selDay = t;
+    renderCalendar();
+  });
+  $("cv-grid").addEventListener("click", function (e) {
+    var b = e.target.closest(".cv__day");
+    if (!b) return;
+    state.selDay = b.dataset.date;
+    renderCalendar();
+    if (window.innerWidth < 900) $("cv-side").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("cv-side").addEventListener("click", function (e) {
+    var act = e.target.closest("[data-act]");
+    if (act) return act.dataset.act === "close" ? closeDay(state.selDay) : reopenDay(state.selDay);
+    var open = e.target.closest("[data-id]");
+    if (open) openDrawer(open.dataset.id);
   });
 
   $("refresh").addEventListener("click", function () { load().then(function () { toast("최신 상태입니다"); }); });
