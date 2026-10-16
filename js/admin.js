@@ -492,9 +492,13 @@
     var d = drawerDates();
     var changed = d.date !== (r.confirmed_date || "") || d.time !== fmtTime(r.confirmed_time);
     var btn = $("d-primary");
-    if (r.status === "confirmed") {
+    var hasWhen = !!(r.confirmed_date && r.confirmed_time);
+    if (r.status === "confirmed" && hasWhen) {
       btn.textContent = "일정 변경 저장";
       btn.disabled = !changed || !d.date || !d.time;
+    } else if (r.status === "confirmed") {
+      btn.textContent = r.email ? "일정 확정하고 안내 메일 보내기" : "일정 확정";
+      btn.disabled = false;
     } else {
       btn.textContent = r.email ? "예약 확정하고 안내 메일 보내기" : "예약 확정";
       btn.disabled = false;
@@ -513,8 +517,9 @@
   }
 
   function mailLine(r) {
-    if (r.status !== "confirmed") return r.email ? "안내 메일 수신: " + esc(r.email) : "이메일이 없습니다. 확정 후 전화로 안내해 주세요.";
+    if (r.status !== "confirmed") return r.email ? "확정하면 " + esc(r.email) + "로 안내 메일이 발송됩니다." : "이메일이 없습니다. 확정 후 전화로 안내해 주세요.";
     if (!r.email) return "이메일이 없어 안내 메일을 보낼 수 없습니다. 전화로 안내해 주세요.";
+    if (!r.confirmed_date || !r.confirmed_time) return "확정 날짜와 시간을 정하고 아래 버튼을 누르면 안내 메일이 발송됩니다.";
     if (r.confirmation_sent_at) return '<span class="ok">&#10003; 안내 메일 발송됨</span> (' + fmtStamp(r.confirmation_sent_at) + ")";
     if (r.confirmation_error) return '<span class="bad">안내 메일 발송에 실패했습니다.</span> 아래 버튼으로 다시 보내 주세요.';
     return "안내 메일을 아직 보내지 않았습니다.";
@@ -540,7 +545,7 @@
       fillSlots(r, $("d-cdate").value, fmtTime(r.confirmed_time));
       $("d-note").value = r.staff_note || "";
     }
-    $("d-resend").hidden = !(r.status === "confirmed" && r.email);
+    $("d-resend").hidden = !(r.status === "confirmed" && r.email && r.confirmed_date && r.confirmed_time);
     $("d-mail").innerHTML = mailLine(r);
     updateScheduleUi();
   }
@@ -1063,11 +1068,8 @@
     if (!el || !host) return;
     var r = byId(host.dataset.id);
     if (el.dataset.field === "status") {
-      // Confirming needs a date and time, a conflict check and the patient email, so it has its own flow.
-      if (el.value === "confirmed" && r.status !== "confirmed") {
-        render();
-        return confirmBooking(r, r.confirmed_date, fmtTime(r.confirmed_time));
-      }
+      // Changing the status never emails the patient. The confirmation goes out from the detail
+      // page, once the date and time have been set there.
       if (await save(r.id, { status: el.value })) render(); else render();
       if (state.openId === r.id) fillDrawer(true);
       return;
@@ -1101,7 +1103,7 @@
 
   $("d-primary").addEventListener("click", function () {
     var r = byId(state.openId), d = drawerDates();
-    confirmBooking(r, d.date, d.time, r.status === "confirmed");
+    confirmBooking(r, d.date, d.time, r.status === "confirmed" && !!(r.confirmed_date && r.confirmed_time));
   });
   $("d-resend").addEventListener("click", async function () {
     var r = byId(state.openId);
@@ -1113,11 +1115,6 @@
 
   $("d-status").addEventListener("change", async function (e) {
     var r = byId(state.openId), v = e.target.value;
-    if (v === "confirmed" && r.status !== "confirmed") {
-      e.target.value = r.status;
-      var d = drawerDates();
-      return confirmBooking(r, d.date, d.time, false);
-    }
     if (await save(r.id, { status: v })) { render(); fillDrawer(false); } else fillDrawer(false);
   });
 
