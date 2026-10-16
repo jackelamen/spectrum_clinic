@@ -313,7 +313,7 @@
       return '<tr data-id="' + r.id + '" class="row--' + r.status + (r._dup ? " row--dup" : "") + (r.id === state.openId ? " is-open" : "") + '">' +
         '<td class="col-created num">' + fmtStamp(r.created_at) + "</td>" +
         '<td class="col-pn">' + pnCell(r) + "</td>" +
-        '<td class="col-name"><button type="button" class="name-btn" data-open>' + esc(r.name) + "</button>" + (r._dup ? " " + dupBadge(r) : "") + "</td>" +
+        '<td class="col-name"><button type="button" class="name-btn" data-open>' + esc(r.name) + "</button>" + (r.source === "staff" ? ' <span class="src-tag">직접 등록</span>' : "") + (r._dup ? " " + dupBadge(r) : "") + "</td>" +
         '<td class="col-phone num"><a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + "</a></td>" +
         '<td class="col-visit"><span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span></td>" +
         '<td class="col-pref num">' + fmtDay(r.preferred_date) + (rel ? ' <span class="rel">' + rel + "</span>" : "") + "</td>" +
@@ -466,22 +466,23 @@
     $$(".grid tbody tr.is-open").forEach(function (tr) { tr.classList.remove("is-open"); });
   }
 
-  // Fills the 확정 일시 time list for a date, marking slots that are already taken.
-  function fillSlots(r, date, selected) {
+  // Fills a time list with every 10-minute slot, marking the ones already taken on that date.
+  function fillSlotSelect(sel, date, selected, excludeId) {
     var taken = {};
     rows.forEach(function (x) {
-      if (x.id !== r.id && isBlocking(x) && x.confirmed_date === date) {
+      if (x.id !== excludeId && isBlocking(x) && x.confirmed_date === date) {
         var k = fmtTime(x.confirmed_time);
         (taken[k] = taken[k] || []).push(x.name);
       }
     });
     var list = SLOTS.slice();
     if (selected && list.indexOf(selected) === -1) { list.push(selected); list.sort(); }
-    $("d-ctime").innerHTML = '<option value="">시간 선택</option>' + list.map(function (s) {
-      return '<option value="' + s + '"' + (s === selected ? " selected" : "") + (taken[s] ? ' class="is-taken"' : "") + ">" +
-        s + (taken[s] ? "  (예약 있음: " + taken[s].join(", ") + ")" : "") + "</option>";
+    sel.innerHTML = '<option value="">시간 선택</option>' + list.map(function (sl) {
+      return '<option value="' + sl + '"' + (sl === selected ? " selected" : "") + (taken[sl] ? ' class="is-taken"' : "") + ">" +
+        sl + (taken[sl] ? "  (예약 있음: " + taken[sl].join(", ") + ")" : "") + "</option>";
     }).join("");
   }
+  function fillSlots(r, date, selected) { fillSlotSelect($("d-ctime"), date, selected, r.id); }
 
   function drawerDates() { return { date: $("d-cdate").value, time: $("d-ctime").value }; }
 
@@ -525,7 +526,7 @@
     if (!r) return closeDrawer();
     $("d-name").textContent = r.name;
     $("d-sub").innerHTML = '<span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span>" +
-      '<span class="st-badge st--' + r.status + '">' + STATUS[r.status] + "</span>" + dupBadge(r);
+      '<span class="st-badge st--' + r.status + '">' + STATUS[r.status] + "</span>" + (r.source === "staff" ? '<span class="src-tag">직접 등록</span>' : "") + dupBadge(r);
     $("d-phone").innerHTML = '<a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + "</a>";
     $("d-email").textContent = r.email || "없음";
     $("d-pref").textContent = fmtDayLong(r.preferred_date) + " · " + TIME[r.preferred_time];
@@ -603,6 +604,122 @@
     return true;
   }
 
+  /* ---------- New booking entered by staff ---------- */
+
+  var EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  var nbMailTouched = false;
+
+  function dashPhone(v) {
+    var d = digits(v);
+    if (d.length === 11) return d.slice(0, 3) + "-" + d.slice(3, 7) + "-" + d.slice(7);
+    if (d.length === 10) return d.slice(0, 3) + "-" + d.slice(3, 6) + "-" + d.slice(6);
+    return v.trim();
+  }
+
+  function openNewBooking(pre) {
+    pre = pre || {};
+    $("nb-error").classList.remove("is-visible");
+    ["nb-name", "nb-phone", "nb-email", "nb-note"].forEach(function (id) { $(id).value = ""; });
+    $$('input[name="nb-visit"]').forEach(function (r) { r.checked = false; });
+    $("nb-mail").checked = false; nbMailTouched = false;
+    var date = pre.date || state.selDay || today();
+    $("nb-date").value = date;
+    fillSlotSelect($("nb-time"), date, pre.time || "", null);
+    nbRefresh();
+    $("nb-dlg").showModal();
+    $("nb-name").focus();
+  }
+
+  // Keeps the warnings, patient suggestions and mail checkbox in step with what has been typed.
+  function nbRefresh() {
+    var date = $("nb-date").value, time = $("nb-time").value, warn = [];
+    if (date && closedMap[date]) warn.push("<b>휴진</b> " + fmtDayLong(date) + "은 휴진으로 지정되어 있습니다.");
+    if (date && time) {
+      var clash = rows.filter(function (x) { return isBlocking(x) && x.confirmed_date === date && fmtTime(x.confirmed_time) === time; });
+      if (clash.length) warn.push("<b>중복</b> 이 시간에 이미 확정된 예약이 있습니다: " + clash.map(function (x) { return esc(x.name); }).join(", "));
+    }
+    $("nb-warn").hidden = !warn.length;
+    $("nb-warn").innerHTML = warn.join("<br>");
+
+    var phone = digits($("nb-phone").value), name = $("nb-name").value.trim();
+    var sug = patients.filter(function (p) {
+      return (phone.length >= 8 && digits(p.phone) === phone) || (name && p.name === name);
+    }).slice(0, 5);
+    var cur = (document.querySelector('input[name="nb-pt"]:checked') || {}).value || "";
+    var box = $("nb-patient");
+    if (!sug.length) { box.hidden = true; box.innerHTML = ""; }
+    else {
+      box.hidden = false;
+      box.innerHTML = '<span class="d-label">기존 환자와 연결 (환자번호 유지)</span><div class="nb-sugs">' +
+        '<label class="nb-sug"><input type="radio" name="nb-pt" value=""' + (cur === "" ? " checked" : "") + "> 연결하지 않음 (나중에 지정)</label>" +
+        sug.map(function (p) {
+          return '<label class="nb-sug"><input type="radio" name="nb-pt" value="' + p.id + '"' + (cur === p.id ? " checked" : "") + "> <b>" +
+            esc(p.patient_number) + "</b> " + esc(p.name) + (p.phone ? ' <span class="muted">' + esc(p.phone) + "</span>" : "") + "</label>";
+        }).join("") + "</div>";
+    }
+
+    var hasMail = EMAIL_RE.test($("nb-email").value.trim());
+    $("nb-mail").disabled = !hasMail;
+    if (!hasMail) $("nb-mail").checked = false; else if (!nbMailTouched) $("nb-mail").checked = true;
+  }
+
+  async function submitNewBooking() {
+    var fail = function (m) { $("nb-error").textContent = m; $("nb-error").classList.add("is-visible"); };
+    $("nb-error").classList.remove("is-visible");
+    var name = $("nb-name").value.trim(), phone = dashPhone($("nb-phone").value);
+    var email = $("nb-email").value.trim().toLowerCase();
+    var visit = (document.querySelector('input[name="nb-visit"]:checked') || {}).value;
+    var date = $("nb-date").value, time = $("nb-time").value;
+    if (!name) return fail("성함을 입력해 주세요.");
+    if (!/^01[0-9]-?\d{3,4}-?\d{4}$/.test(phone)) return fail("연락처를 정확히 입력해 주세요.");
+    if (email && !EMAIL_RE.test(email)) return fail("이메일 주소를 확인해 주세요.");
+    if (!visit) return fail("진료 구분을 선택해 주세요.");
+    if (!date) return fail("날짜를 선택해 주세요.");
+    if (!time) return fail("시간을 선택해 주세요.");
+
+    if (closedMap[date]) {
+      var shut = await ask({
+        title: "휴진으로 지정된 날입니다",
+        html: "<p><b>" + fmtDayLong(date) + "</b>은 휴진으로 지정되어 있습니다. 그래도 예약을 등록하시겠습니까?</p>",
+        ok: "그래도 등록", danger: true, cancel: "돌아가기"
+      });
+      if (shut !== "ok") return;
+    }
+    var clash = rows.filter(function (x) { return isBlocking(x) && x.confirmed_date === date && fmtTime(x.confirmed_time) === time; });
+    if (clash.length) {
+      var yes = await ask({
+        title: "이미 예약이 있는 시간입니다",
+        html: "<p><b>" + fmtDayLong(date) + " " + time + "</b>에 이미 확정된 예약이 있습니다.</p><ul class=\"dlg__list\">" +
+          clash.map(function (x) { return "<li><b>" + esc(x.name) + "</b>" + (x.patient ? " (" + esc(x.patient.patient_number) + ")" : "") + " · " + VISIT[x.visit_type] + "</li>"; }).join("") +
+          "</ul><p>그래도 같은 시간에 <b>" + esc(name) + "</b>님을 중복 예약하시겠습니까? 중복된 예약에는 표시가 붙습니다.</p>",
+        ok: "중복 예약으로 등록", danger: true, cancel: "다른 시간 고르기"
+      });
+      if (yes !== "ok") return;
+    }
+
+    var btn = $("nb-save");
+    btn.disabled = true;
+    var res = await db.from("reservation_requests").insert({
+      name: name, phone: phone, email: email || null, visit_type: visit,
+      preferred_date: date, preferred_time: "any", message: null, privacy_consent: false,
+      status: "confirmed", confirmed_date: date, confirmed_time: time,
+      staff_note: $("nb-note").value.trim() || null,
+      patient_id: (document.querySelector('input[name="nb-pt"]:checked') || {}).value || null,
+      source: "staff"
+    }).select().single();
+    btn.disabled = false;
+    if (res.error) return fail("예약을 저장하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도해 주세요.");
+
+    var row = res.data;
+    row.created_date = kstDate(new Date(row.created_at));
+    rows.unshift(row); attachPatients(); indexSlots();
+    $("nb-dlg").close();
+    state.selDay = date; state.calY = Number(date.slice(0, 4)); state.calM = Number(date.slice(5, 7)) - 1;
+    render();
+    toast("예약을 등록했습니다 (" + fmtDay(date) + " " + time + ")");
+    if ($("nb-mail").checked && row.email) await sendConfirmation(row);
+  }
+
   /* ---------- Excel export ---------- */
 
   async function exportXlsx() {
@@ -627,7 +744,7 @@
       var cols = [
         ["접수일시", 16], ["환자번호", 12], ["이름", 12], ["연락처", 16], ["이메일", 26], ["진료 구분", 10],
         ["희망일", 13], ["희망 시간대", 12], ["상태", 9], ["확정일", 13], ["확정 시간", 10], ["중복 예약", 10],
-        ["안내 메일", 12], ["문의 내용", 44], ["직원 메모", 36]
+        ["안내 메일", 12], ["문의 내용", 44], ["직원 메모", 36], ["등록 경로", 11]
       ];
       ws.columns = cols.map(function (c) { return { header: c[0], width: c[1] }; });
       var fills = { new: "FFFDEAEA", contacted: "FFFFF3D4", confirmed: "FFE2F3E8", cancelled: "FFEEECE8" };
@@ -637,7 +754,7 @@
           new Date(r.preferred_date + "T00:00:00Z"), TIME[r.preferred_time], STATUS[r.status],
           r.confirmed_date ? new Date(r.confirmed_date + "T00:00:00Z") : "", fmtTime(r.confirmed_time),
           r._dup ? "중복" : "", r.status === "confirmed" ? (r.confirmation_sent_at ? "발송" : r.email ? "미발송" : "이메일 없음") : "",
-          r.message || "", r.staff_note || ""
+          r.message || "", r.staff_note || "", r.source === "staff" ? "직접 등록" : "웹"
         ]);
         row.getCell(7).numFmt = "yyyy-mm-dd"; row.getCell(10).numFmt = "yyyy-mm-dd";
         row.getCell(4).numFmt = "@"; row.getCell(2).numFmt = "@";
@@ -770,7 +887,7 @@
       h += '<div class="tt__row"><span class="tt__h">' + hh + "시</span><div class=\"tt__cells\">";
       hours[hh].forEach(function (sl) {
         var list = byTime[sl];
-        if (!list) { h += '<span class="tt__slot" title="' + sl + ' 비어 있음">' + sl.slice(3) + "</span>"; return; }
+        if (!list) { h += '<button type="button" class="tt__slot is-free" data-slot="' + sl + '" title="' + sl + ' 비어 있음. 눌러서 예약 등록" aria-label="' + sl + ' 비어 있음, 예약 등록">' + sl.slice(3) + "</button>"; return; }
         var dup = list.length > 1;
         h += '<button type="button" class="tt__slot is-booked' + (dup ? " is-dup" : "") + '" data-id="' + list[0].id + '" title="' + sl + " " +
           esc(list.map(function (x) { return x.name; }).join(", ")) + (dup ? " (중복 예약)" : "") + '">' +
@@ -1024,10 +1141,23 @@
     if (window.innerWidth < 900) $("cv-side").scrollIntoView({ behavior: "smooth", block: "start" });
   });
   $("cv-side").addEventListener("click", function (e) {
+    var fs = e.target.closest("[data-slot]");
+    if (fs) return openNewBooking({ date: state.selDay, time: fs.dataset.slot });
     var act = e.target.closest("[data-act]");
     if (act) return act.dataset.act === "close" ? closeDay(state.selDay) : reopenDay(state.selDay);
     var open = e.target.closest("[data-id]");
     if (open) openDrawer(open.dataset.id);
+  });
+
+  $("new-booking").addEventListener("click", function () { openNewBooking({ date: state.view === "calendar" ? state.selDay : today() }); });
+  $("nb-cancel").addEventListener("click", function () { $("nb-dlg").close(); });
+  $("nb-form").addEventListener("submit", function (e) { e.preventDefault(); submitNewBooking(); });
+  ["nb-name", "nb-phone", "nb-email"].forEach(function (id) { $(id).addEventListener("input", nbRefresh); });
+  $("nb-mail").addEventListener("change", function () { nbMailTouched = true; });
+  $("nb-time").addEventListener("change", nbRefresh);
+  $("nb-date").addEventListener("change", function () {
+    fillSlotSelect($("nb-time"), $("nb-date").value, $("nb-time").value, null);
+    nbRefresh();
   });
 
   $("refresh").addEventListener("click", function () { load().then(function () { toast("최신 상태입니다"); }); });
