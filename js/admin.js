@@ -27,7 +27,7 @@
 
   var rows = [];
   var closed = {};            // date -> { day, reason }
-  var state = { tab: "bookings", s: "new", q: "" };
+  var state = { tab: "bookings", q: "" };
 
   /* ---------- Small helpers ---------- */
 
@@ -181,7 +181,6 @@
   function visible() {
     var q = state.q.toLowerCase(), dq = digits(q);
     return rows.filter(function (r) {
-      if (state.s !== "all" && r.status !== state.s) return false;
       if (!q) return true;
       var hay = [r.name, r.phone, r.email, r.message, r.staff_note].join(" ").toLowerCase();
       return hay.indexOf(q) !== -1 || (dq.length >= 3 && digits(r.phone).indexOf(dq) !== -1);
@@ -191,55 +190,54 @@
   function slotOptions(selected) {
     var list = SLOTS.slice();
     if (selected && list.indexOf(selected) === -1) { list.push(selected); list.sort(); }
-    return '<option value="">시간 선택</option>' + list.map(function (s) {
+    return '<option value="">시간</option>' + list.map(function (s) {
       return '<option value="' + s + '"' + (s === selected ? " selected" : "") + ">" + s + "</option>";
     }).join("");
   }
 
-  function mailLine(r) {
-    if (!r.email) return "이메일이 없어 안내 메일을 보낼 수 없습니다.";
-    if (r.confirmation_sent_at) return '<span class="ok">&#10003; 안내 메일 발송됨</span> (' + fmtStamp(r.confirmation_sent_at) + ")";
-    if (r.confirmation_error) return '<span class="bad">안내 메일 발송에 실패했습니다.</span>';
-    return "확정하면 안내 메일을 보낼 수 있습니다.";
+  function mailCell(r) {
+    if (r.status !== "confirmed" || !r.confirmed_time) return "";
+    if (!r.email) return '<span class="mail">이메일 없음</span>';
+    if (r.confirmation_sent_at) return '<span class="mail ok">&#10003; 안내 메일 발송</span>';
+    return '<button type="button" class="btn-line btn-line--sm" data-act="mail">' + (r.confirmation_error ? "메일 다시 보내기" : "안내 메일 보내기") + "</button>";
   }
 
-  function card(r) {
-    var set = r.status === "confirmed" && r.confirmed_date && r.confirmed_time;
+  function row(r) {
     var statusOptions = Object.keys(STATUS).map(function (k) {
       return '<option value="' + k + '"' + (k === r.status ? " selected" : "") + ">" + STATUS[k] + "</option>";
     }).join("");
-    return '<article class="card card--' + r.status + '" data-id="' + r.id + '">' +
-      '<div class="card__head">' +
-        '<div class="card__who"><h3>' + esc(r.name) + '</h3><span class="tag">' + VISIT[r.visit_type] + "</span>" +
-          '<span class="card__when">접수 ' + fmtStamp(r.created_at) + " · " + ago(r.created_at) + "</span></div>" +
-        '<div class="card__tools"><select class="st st--' + r.status + '" data-f="status" aria-label="상태">' + statusOptions + "</select>" +
-          '<button type="button" class="btn-line" data-act="copy">복사</button></div>' +
-      "</div>" +
-      '<dl class="card__grid">' +
-        '<div><dt>연락처</dt><dd><a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + "</a></dd></div>" +
-        "<div><dt>이메일</dt><dd>" + (r.email ? esc(r.email) : '<span class="muted">없음</span>') + "</dd></div>" +
-        "<div><dt>희망 일시</dt><dd>" + fmtDay(r.preferred_date) + " · " + TIME[r.preferred_time] +
-          (closed[r.preferred_date] ? ' <span class="warn">휴진일</span>' : "") + "</dd></div>" +
-        '<div class="confirm"><dt>확정 일시</dt><dd>' +
-          '<input type="date" data-f="cdate" value="' + esc(r.confirmed_date || r.preferred_date) + '" aria-label="확정 날짜">' +
-          '<select data-f="ctime" aria-label="확정 시간">' + slotOptions(fmtTime(r.confirmed_time)) + "</select>" +
-          '<button type="button" class="btn-main" data-act="confirm">' + (set ? "일정 변경 저장" : "확정") + "</button>" +
-          '<span class="mail">' + mailLine(r) + "</span></dd></div>" +
-        '<div class="wide"><dt>문의 내용</dt><dd>' + (r.message ? esc(r.message) : '<span class="muted">없음</span>') + "</dd></div>" +
-        '<div class="wide"><dt>직원 메모</dt><dd><textarea data-f="note" rows="2" maxlength="2000" placeholder="통화 내용, 특이사항 등" aria-label="직원 메모">' + esc(r.staff_note) + "</textarea></dd></div>" +
-      "</dl></article>";
+    return '<tr class="row row--' + r.status + '" data-id="' + r.id + '">' +
+      '<td class="c-created">' + fmtStamp(r.created_at) + "</td>" +
+      '<td class="c-name"><strong>' + esc(r.name) + "</strong></td>" +
+      '<td class="c-phone"><a href="tel:' + esc(r.phone) + '">' + esc(r.phone) + "</a>" + (r.email ? '<div class="sub">' + esc(r.email) + "</div>" : "") + "</td>" +
+      '<td><span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span></td>" +
+      '<td class="c-pref">' + fmtDay(r.preferred_date) + (closed[r.preferred_date] ? ' <span class="warn">휴진일</span>' : "") + '<div class="sub">' + TIME[r.preferred_time] + "</div></td>" +
+      '<td><select class="st st--' + r.status + '" data-f="status" aria-label="상태">' + statusOptions + "</select></td>" +
+      '<td class="c-confirm"><div class="dt"><input type="date" data-f="cdate" value="' + esc(r.confirmed_date || "") + '" aria-label="확정 날짜">' +
+        '<select data-f="ctime" aria-label="확정 시간">' + slotOptions(fmtTime(r.confirmed_time)) + "</select></div>" + mailCell(r) + "</td>" +
+      '<td class="c-msg">' + (r.message ? esc(r.message) : '<span class="muted">-</span>') + "</td>" +
+      '<td class="c-note"><textarea data-f="note" rows="2" maxlength="2000" aria-label="직원 메모">' + esc(r.staff_note) + "</textarea></td>" +
+      '<td><button type="button" class="btn-line btn-line--sm" data-act="copy">복사</button></td></tr>';
   }
 
   function render() {
-    $$("#chips button").forEach(function (b) {
-      var k = b.dataset.s;
-      b.classList.toggle("is-active", k === state.s);
-      var n = k === "all" ? rows.length : rows.filter(function (r) { return r.status === k; }).length;
-      b.querySelector("b").textContent = n || "";
-    });
+    var t = today(), weekEnd = addDays(t, 6 - weekday(t));
+    var conf = rows.filter(function (r) { return r.status === "confirmed" && r.confirmed_date; });
+    var tiles = [
+      ["신규 요청", rows.filter(function (r) { return r.status === "new"; }).length, true],
+      ["오늘 예약", conf.filter(function (r) { return r.confirmed_date === t; }).length],
+      ["이번 주 예약", conf.filter(function (r) { return r.confirmed_date >= t && r.confirmed_date <= weekEnd; }).length],
+      ["전체", rows.length]
+    ];
+    $("stats").innerHTML = tiles.map(function (x) {
+      return '<div class="stat"><span>' + x[0] + '</span><b' + (x[2] && x[1] ? ' class="hot"' : "") + ">" + x[1] + "</b></div>";
+    }).join("");
     var list = visible();
-    var empty = { new: "새로 들어온 요청이 없습니다.", contacted: "연락함 상태의 요청이 없습니다.", confirmed: "확정된 예약이 없습니다.", cancelled: "취소된 요청이 없습니다.", all: "예약이 없습니다." };
-    $("list").innerHTML = list.length ? list.map(card).join("") : '<p class="empty">' + (state.q ? "검색 결과가 없습니다." : empty[state.s]) + "</p>";
+    $("count").textContent = state.q ? list.length + "건 / 전체 " + rows.length + "건" : "전체 " + rows.length + "건";
+    $("list").innerHTML = list.length
+      ? '<table class="grid"><thead><tr><th>접수일시</th><th>이름</th><th>연락처</th><th>구분</th><th>희망 일시</th><th>상태</th><th>확정 일시</th><th>문의 내용</th><th>직원 메모</th><th></th></tr></thead><tbody>' +
+        list.map(row).join("") + "</tbody></table>"
+      : '<p class="empty">' + (state.q ? "검색 결과가 없습니다." : "예약이 없습니다.") + "</p>";
     renderClosed();
   }
 
@@ -273,9 +271,9 @@
 
   $("list").addEventListener("change", async function (e) {
     var f = e.target.getAttribute("data-f");
-    var cardEl = e.target.closest(".card");
-    if (!f || !cardEl) return;
-    var id = cardEl.dataset.id, r = byId(id);
+    var tr = e.target.closest("tr");
+    if (!f || !tr) return;
+    var id = tr.dataset.id, r = byId(id);
     if (f === "status") {
       var prev = r.status;
       if (await save(id, { status: e.target.value })) {
@@ -286,23 +284,23 @@
       } else render();
     } else if (f === "note") {
       if (await save(id, { staff_note: e.target.value.trim() || null })) toast("메모를 저장했습니다");
+    } else if (f === "cdate" || f === "ctime") {
+      var dEl = tr.querySelector('[data-f="cdate"]'), tEl = tr.querySelector('[data-f="ctime"]');
+      if (!dEl.value && tEl.value) dEl.value = r.preferred_date;
+      if (dEl.value && tEl.value) await confirmBooking(id, dEl.value, tEl.value);
+      render();
     }
   });
 
   $("list").addEventListener("click", function (e) {
     var b = e.target.closest("[data-act]");
     if (!b) return;
-    var cardEl = b.closest(".card"), r = byId(cardEl.dataset.id);
+    var r = byId(b.closest("tr").dataset.id);
     if (b.dataset.act === "copy") {
       copyText(bookingText(r)).then(function (ok) { toast(ok ? r.name + "님 정보를 복사했습니다" : "복사하지 못했습니다. 직접 선택해 복사해 주세요.", !ok); });
-    } else if (b.dataset.act === "confirm") {
-      confirmBooking(r.id, cardEl.querySelector('[data-f="cdate"]').value, cardEl.querySelector('[data-f="ctime"]').value);
+    } else if (b.dataset.act === "mail") {
+      if (window.confirm(r.name + "님께 확정 안내 메일을 보낼까요?\n" + r.email)) sendConfirmation(r);
     }
-  });
-
-  $("chips").addEventListener("click", function (e) {
-    var b = e.target.closest("button");
-    if (b) { state.s = b.dataset.s; render(); }
   });
 
   var searchTimer;

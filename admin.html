@@ -66,26 +66,20 @@
 
     <!-- Bookings -->
     <div id="tab-bookings">
+      <div class="stats" id="stats"></div>
       <div class="tools">
         <label class="search">
           <input type="search" id="search" placeholder="이름, 연락처, 이메일, 메모 검색" autocomplete="off">
         </label>
         <div class="tools__actions">
           <button type="button" class="btn-line" id="copy-all" title="화면에 보이는 예약을 표 형태로 복사 (엑셀, CRM에 붙여넣기)">목록 복사</button>
-          <button type="button" class="btn-line" id="export">엑셀 다운로드</button>
           <button type="button" class="btn-line" id="refresh">새로고침</button>
+          <button type="button" class="btn-main" id="export">엑셀 다운로드</button>
         </div>
       </div>
-      <div class="chips" id="chips" role="group" aria-label="상태">
-        <button type="button" data-s="new" class="is-active">새 요청 <b></b></button>
-        <button type="button" data-s="contacted">연락함 <b></b></button>
-        <button type="button" data-s="confirmed">확정 <b></b></button>
-        <button type="button" data-s="cancelled">취소 <b></b></button>
-        <button type="button" data-s="all">전체 <b></b></button>
-      </div>
-      <p class="hint">각 예약의 <b>복사</b> 버튼을 누르면 이름, 연락처, 희망 일시 등이 글로 복사됩니다. CRM에 그대로 붙여넣을 수 있습니다.</p>
+      <p class="count" id="count"></p>
       <div class="form-error" id="list-error" role="alert"></div>
-      <div id="list"></div>
+      <div class="gridwrap" id="list"></div>
     </div>
 
     <!-- Closed days -->
