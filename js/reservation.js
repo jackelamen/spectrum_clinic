@@ -11,15 +11,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
   /* ---------- Booking rules (edit here to open more days) ----------
      OPEN_DAYS: weekdays patients can book (0 = Sun ... 6 = Sat).
-     Other weekdays inside the window show as fully booked ("마감").
+     Other days inside the window are greyed out.
      OPENING_DATE: no bookings before the clinic opens.
      The reservation server function enforces the same three values. */
   var SUPABASE_URL = "https://pnsufyerzcestmmfnqks.supabase.co";
   var closed = {};   // dates staff have marked as closed (loaded below)
   var OPEN_DAYS = [1, 2, 3];
-  // The clinic is never open on these days, so they show as plainly unavailable.
-  // (마감 means "fully booked", which would be untrue for a weekend.)
-  var ALWAYS_OFF_DAYS = [0, 6];   // Sunday, Saturday
   var OPENING_DATE = "2027-03-14";
   var WINDOW_DAYS = 90;
 
@@ -92,10 +89,10 @@ document.addEventListener("DOMContentLoaded", function () {
     for (var d = 1; d <= days; d++) {
       var s = iso(view.y, view.m, d);
       var open = isOpen(s);
-      // Weekends, public holidays and days staff have closed are simply unavailable: greyed out, no label.
-      // (마감 would wrongly say "fully booked", so it is kept only for the not-yet-open weekdays.)
-      var off = ALWAYS_OFF_DAYS.indexOf(dow(s)) !== -1 || (!!closed[s] && inWindow(s));
-      var full = !open && inWindow(s) && !off;
+      // Every day that cannot be booked is simply greyed out, with no label.
+      // (마감 means "fully booked", which would be untrue for any of them.)
+      var off = !open && inWindow(s);
+      var full = false;
       var picked = s === dateInput.value;
       var soon = s === firstOpen;
       var cls = "cal__day" + (open ? " is-open" : "") + (full ? " is-full" : "") + (off ? " is-off" : "") + (soon ? " is-soonest" : "") +
