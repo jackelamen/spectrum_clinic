@@ -765,3 +765,5 @@ body { word-break: keep-all; overflow-wrap: break-word; }
 .cal__day.is-shut { color: var(--ink-faint); cursor: default; background: repeating-linear-gradient(135deg, transparent 0 4px, rgba(138,134,125,0.14) 4px 6px); }
 .cal__day.is-shut .cal__num { text-decoration: line-through; text-decoration-color: var(--border); }
 .cal__shut { font-size: 0.6rem; line-height: 1.1; color: var(--ink-soft); font-weight: 500; }
+.cal__day.is-off { color: #d9d6cd; }
+.cal__dow:first-child, .cal__dow:last-child { color: #c4c0b6; }
