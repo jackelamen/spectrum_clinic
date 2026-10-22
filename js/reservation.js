@@ -11,12 +11,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   /* ---------- Booking rules (edit here to open more days) ----------
      OPEN_DAYS: weekdays patients can book (0 = Sun ... 6 = Sat).
+     EXTRA_OPEN: more weekdays open for a stretch of dates.
      Other days inside the window are greyed out.
      OPENING_DATE: no bookings before the clinic opens.
-     The reservation server function enforces the same three values. */
+     The reservation server function enforces the same values. */
   var SUPABASE_URL = "https://pnsufyerzcestmmfnqks.supabase.co";
   var closed = {};   // dates staff have marked as closed (loaded below)
   var OPEN_DAYS = [1, 2, 3];
+  var EXTRA_OPEN = [{ from: "2027-05-01", to: "2027-05-31", days: [4, 5] }];   // May 2027: Thu and Fri too
   var OPENING_DATE = "2027-03-14";
   var WINDOW_DAYS = 90;
 
@@ -31,7 +33,11 @@ document.addEventListener("DOMContentLoaded", function () {
   var firstDay = today > OPENING_DATE ? today : OPENING_DATE;
   var lastDay = addDays(firstDay, WINDOW_DAYS);
   function inWindow(s) { return s >= firstDay && s <= lastDay; }
-  function isOpen(s) { return inWindow(s) && OPEN_DAYS.indexOf(dow(s)) !== -1 && !closed[s]; }
+  function openWeekday(s) {
+    var w = dow(s);
+    return OPEN_DAYS.indexOf(w) !== -1 || EXTRA_OPEN.some(function (x) { return s >= x.from && s <= x.to && x.days.indexOf(w) !== -1; });
+  }
+  function isOpen(s) { return inWindow(s) && openWeekday(s) && !closed[s]; }
 
   var firstOpen = firstDay;
   function findFirstOpen() {

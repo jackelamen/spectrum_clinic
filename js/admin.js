@@ -7,15 +7,17 @@
   var EXCELJS_URL = "https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
   var EXCELJS_SRI = "sha384-Pqp51FUN2/qzfxZxBCtF0stpc9ONI6MYZpVqmo8m20SoaQCzf+arZvACkLkirlPz";
 
-  // Exact appointment times are picked in 10-minute steps between these hours.
-  var CLINIC_START = "09:00";
+  // Exact appointment times are picked in 10-minute steps between these hours, skipping lunch.
+  var CLINIC_START = "09:30";
   var CLINIC_END = "18:00";
+  var LUNCH = ["13:00", "14:30"];
   var REFRESH_MS = 60000;
   var MAX_RANGE_DAYS = 366;
 
   var VISIT = { first: "초진", returning: "재진" };
-  // Two-hour request windows; morning/afternoon are older requests.
+  // Request windows; the two-hour windows and morning/afternoon are older requests.
   var TIME = {
+    am1: "오전 1부 (9:30 ~ 11:15)", am2: "오전 2부 (11:15 ~ 13:00)", pm1: "오후 1부 (14:30 ~ 16:15)", pm2: "오후 2부 (16:15 ~ 18:00)",
     "09-11": "오전 9시 ~ 11시", "11-13": "오전 11시 ~ 오후 1시", "13-15": "오후 1시 ~ 3시",
     "15-17": "오후 3시 ~ 5시", "17-18": "오후 5시 ~ 6시", morning: "오전", afternoon: "오후", any: "상관없음"
   };
@@ -63,7 +65,8 @@
   var SLOTS = (function () {
     var out = [], a = CLINIC_START.split(":"), b = CLINIC_END.split(":");
     for (var m = a[0] * 60 + Number(a[1]); m < b[0] * 60 + Number(b[1]); m += 10) {
-      out.push(("0" + Math.floor(m / 60)).slice(-2) + ":" + ("0" + (m % 60)).slice(-2));
+      var t = ("0" + Math.floor(m / 60)).slice(-2) + ":" + ("0" + (m % 60)).slice(-2);
+      if (t < LUNCH[0] || t >= LUNCH[1]) out.push(t);
     }
     return out;
   })();
@@ -447,7 +450,7 @@
     var b = e.target.closest("[data-clear]");
     if (!b) return;
     var from = b.dataset.from, to = b.dataset.to, n = dayCount(from, to);
-    if (!window.confirm(fmtDayY(from) + (from !== to ? " ~ " + fmtDayY(to) + " (" + n + "일)" : "") + " 휴진을 해제할까요?\n다시 예약할 수 있는 날이 됩니다. (월~수 외의 요일은 계속 제한됩니다.)")) return;
+    if (!window.confirm(fmtDayY(from) + (from !== to ? " ~ " + fmtDayY(to) + " (" + n + "일)" : "") + " 휴진을 해제할까요?\n다시 예약할 수 있는 날이 됩니다. (진료 요일이 아닌 날은 계속 제한됩니다.)")) return;
     var res = await db.from("closed_days").delete().gte("day", from).lte("day", to);
     if (res.error) return toast("해제하지 못했습니다.", true);
     Object.keys(closed).forEach(function (d) { if (d >= from && d <= to) delete closed[d]; });
