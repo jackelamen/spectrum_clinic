@@ -29,6 +29,7 @@
 
   var rows = [];
   var closed = {};            // date -> { day, reason }
+  var pending = {};           // booking id -> { date, time } picked but not yet confirmed
   var state = { tab: "bookings", q: "" };
 
   /* ---------- Small helpers ---------- */
@@ -206,6 +207,8 @@
   }
 
   function row(r) {
+    var pick = pending[r.id] || { date: r.confirmed_date || "", time: fmtTime(r.confirmed_time) };
+    var showConfirm = pending[r.id] || r.status !== "confirmed";
     var statusOptions = Object.keys(STATUS).map(function (k) {
       return '<option value="' + k + '"' + (k === r.status ? " selected" : "") + ">" + STATUS[k] + "</option>";
     }).join("");
@@ -216,8 +219,10 @@
       '<td><span class="tag tag--' + r.visit_type + '">' + VISIT[r.visit_type] + "</span></td>" +
       '<td class="c-pref">' + fmtDay(r.preferred_date) + (closed[r.preferred_date] ? ' <span class="warn">휴진일</span>' : "") + '<div class="sub">' + TIME[r.preferred_time] + "</div></td>" +
       '<td><select class="st st--' + r.status + '" data-f="status" aria-label="상태">' + statusOptions + "</select></td>" +
-      '<td class="c-confirm"><div class="dt"><input type="date" data-f="cdate" value="' + esc(r.confirmed_date || "") + '" aria-label="확정 날짜">' +
-        '<select data-f="ctime" aria-label="확정 시간">' + slotOptions(fmtTime(r.confirmed_time)) + "</select></div>" + mailCell(r) + "</td>" +
+      '<td class="c-confirm"><div class="dt"><input type="date" data-f="cdate" value="' + esc(pick.date) + '" aria-label="확정 날짜">' +
+        '<select data-f="ctime" aria-label="확정 시간">' + slotOptions(pick.time) + "</select>" +
+        (showConfirm ? '<button type="button" class="btn-main btn-main--sm" data-act="confirm">' + (r.status === "confirmed" ? "변경" : "확정") + "</button>" : "") +
+        "</div>" + mailCell(r) + "</td>" +
       '<td class="c-msg">' + (r.message ? esc(r.message) : '<span class="muted">-</span>') + "</td>" +
       '<td class="c-note"><textarea data-f="note" rows="2" maxlength="2000" aria-label="직원 메모">' + esc(r.staff_note) + "</textarea></td>" +
       '<td><button type="button" class="btn-line btn-line--sm" data-act="copy">복사</button></td></tr>';
@@ -263,6 +268,7 @@
     if (clash.length && !window.confirm("같은 시간(" + fmtDay(date) + " " + time + ")에 이미 확정된 예약이 있습니다: " +
       clash.map(function (x) { return x.name; }).join(", ") + "\n\n그래도 확정할까요?")) return;
     if (!(await save(id, { status: "confirmed", confirmed_date: date, confirmed_time: time }))) return;
+    delete pending[id];
     render();
     toast("확정했습니다 (" + fmtDay(date) + " " + time + ")");
     if (r.email) {
@@ -288,10 +294,11 @@
     } else if (f === "note") {
       if (await save(id, { staff_note: e.target.value.trim() || null })) toast("메모를 저장했습니다");
     } else if (f === "cdate" || f === "ctime") {
+      // Nothing is saved until the 확정 button is pressed; keep the picks across refreshes.
       var dEl = tr.querySelector('[data-f="cdate"]'), tEl = tr.querySelector('[data-f="ctime"]');
       if (!dEl.value && tEl.value) dEl.value = r.preferred_date;
-      if (dEl.value && tEl.value) await confirmBooking(id, dEl.value, tEl.value);
-      render();
+      pending[id] = { date: dEl.value, time: tEl.value };
+      if (!tr.querySelector('[data-act="confirm"]')) render();
     }
   });
 
@@ -299,7 +306,10 @@
     var b = e.target.closest("[data-act]");
     if (!b) return;
     var r = byId(b.closest("tr").dataset.id);
-    if (b.dataset.act === "copy") {
+    if (b.dataset.act === "confirm") {
+      var tr = b.closest("tr");
+      confirmBooking(r.id, tr.querySelector('[data-f="cdate"]').value, tr.querySelector('[data-f="ctime"]').value);
+    } else if (b.dataset.act === "copy") {
       copyText(bookingText(r)).then(function (ok) { toast(ok ? r.name + "님 정보를 복사했습니다" : "복사하지 못했습니다. 직접 선택해 복사해 주세요.", !ok); });
     } else if (b.dataset.act === "mail") {
       if (window.confirm(r.name + "님께 확정 안내 메일을 보낼까요?\n" + r.email)) sendConfirmation(r);

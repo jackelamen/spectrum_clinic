@@ -71,7 +71,7 @@
 .stat b { font-family: var(--font-head); font-size: 1.7rem; line-height: 1.2; }
 .stat b.hot { color: var(--st-new); }
 .count { font-size: 0.88rem; color: var(--ink-faint); margin: 0 0 8px; }
-.btn-line--sm { padding: 4px 10px; font-size: 0.8rem; }
+.btn-line--sm, .btn-main--sm { padding: 4px 10px; font-size: 0.8rem; }
 .tag--first { background: #ece6f7; color: #5b3a9a; }
 
 /* Spreadsheet-style list: everything on one screen, long text wraps instead of scrolling sideways */
