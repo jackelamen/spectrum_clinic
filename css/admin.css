@@ -19,6 +19,11 @@
 .admin-login { width: 100%; max-width: 400px; }
 .admin-login__logo { display: block; width: 240px; max-width: 100%; height: auto; margin: 0 auto 20px; }
 .admin-login h1 { text-align: center; font-size: 1.3rem; margin-bottom: 20px; }
+.admin-login__lead { color: var(--ink-soft); font-size: 0.92rem; margin: 0 0 16px; }
+.admin-login__done { color: var(--ink); font-size: 0.95rem; line-height: 1.7; text-align: center; margin: 8px 0 0; }
+.admin-login__alt { text-align: center; margin: 16px 0 0; }
+.linkish { background: none; border: 0; padding: 4px; font: inherit; font-size: 0.9rem; color: var(--ink-soft); text-decoration: underline; cursor: pointer; }
+.linkish:hover { color: var(--ink); }
 
 /* Top bar */
 .bar {

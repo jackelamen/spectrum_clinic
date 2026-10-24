@@ -24,6 +24,11 @@
   var STATUS = { new: "새 요청", contacted: "연락함", confirmed: "확정", cancelled: "취소" };
   var DAYS = ["일", "월", "화", "수", "목", "금", "토"];
 
+  // A password reset link lands back here with its token in the URL hash; note it before anything rewrites the hash.
+  var recovering = /type=recovery/.test(location.hash);
+  var linkFailed = /error_code=|error_description=/.test(location.hash);
+  var MIN_PASSWORD = 8;
+
   var $ = function (id) { return document.getElementById(id); };
   var $$ = function (sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); };
 
@@ -90,7 +95,7 @@
   /* ---------- Sign in ---------- */
 
   function show(view) {
-    ["login-view", "denied-view", "app"].forEach(function (v) { $(v).hidden = v !== view; });
+    ["login-view", "forgot-view", "password-view", "denied-view", "app"].forEach(function (v) { $(v).hidden = v !== view; });
   }
 
   var timer;
@@ -99,10 +104,21 @@
     var session = res.data.session;
     clearInterval(timer);
     $("admin-user").hidden = !session;
-    if (!session) return show("login-view");
+    if (!session) {
+      if (linkFailed) {
+        linkFailed = false;
+        history.replaceState(null, "", location.pathname);
+        $("login-error").textContent = "비밀번호 재설정 링크가 만료되었거나 이미 사용되었습니다. 다시 요청해 주세요.";
+        $("login-error").classList.add("is-on");
+      }
+      return show("login-view");
+    }
     $("admin-email").textContent = session.user.email;
     var staff = await db.from("staff").select("user_id").eq("user_id", session.user.id).maybeSingle();
     if (!staff.data) return show("denied-view");
+    // First sign-in with a password someone else set, or arriving from a reset link: choose a new password first.
+    if (recovering) return askPassword("reset", session.user.email);
+    if ((session.user.user_metadata || {}).must_change_password) return askPassword("first", session.user.email);
     show("app");
     await load();
     timer = setInterval(function () {
@@ -500,6 +516,80 @@
     route();
   });
 
+  /* ---------- Passwords ---------- */
+
+  var PW_TEXT = {
+    first: ["새 비밀번호 설정", "처음 로그인하셨습니다. 안전을 위해 본인만 아는 새 비밀번호로 바꿔 주세요."],
+    reset: ["비밀번호 재설정", "새로 사용할 비밀번호를 입력해 주세요."],
+    change: ["비밀번호 변경", "새로 사용할 비밀번호를 입력해 주세요."]
+  };
+  var pwMode;
+
+  function askPassword(mode, email) {
+    pwMode = mode;
+    $("pw-title").textContent = PW_TEXT[mode][0];
+    $("pw-lead").textContent = PW_TEXT[mode][1];
+    $("pw-user").value = email || "";
+    $("pw-new").value = ""; $("pw-again").value = "";
+    $("pw-error").classList.remove("is-on");
+    $("pw-cancel-row").hidden = mode !== "change";
+    show("password-view");
+    $("pw-new").focus();
+  }
+
+  $("change-pw").addEventListener("click", function () { askPassword("change", $("admin-email").textContent); });
+  $("pw-cancel").addEventListener("click", function () { show("app"); });
+
+  $("pw-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var err = $("pw-error"), a = $("pw-new").value, b = $("pw-again").value;
+    var fail = function (m) { err.textContent = m; err.classList.add("is-on"); };
+    err.classList.remove("is-on");
+    if (a.length < MIN_PASSWORD) return fail("비밀번호는 " + MIN_PASSWORD + "자 이상이어야 합니다.");
+    if (a !== b) return fail("두 비밀번호가 서로 다릅니다. 다시 확인해 주세요.");
+    $("pw-submit").disabled = true;
+    var res = await db.auth.updateUser({ password: a, data: { must_change_password: false } });
+    $("pw-submit").disabled = false;
+    if (res.error) {
+      var code = res.error.code || "";
+      if (code === "same_password") return fail("지금 사용 중인 비밀번호와 다른 비밀번호를 입력해 주세요.");
+      if (code === "weak_password") return fail("비밀번호가 너무 단순합니다. 숫자나 기호를 섞어 더 길게 만들어 주세요.");
+      if (code === "reauthentication_needed" || res.error.status === 401) return fail("로그인이 만료되었습니다. 로그아웃 후 다시 로그인하거나 재설정 링크를 다시 요청해 주세요.");
+      return fail("비밀번호를 저장하지 못했습니다. 잠시 후 다시 시도해 주세요.");
+    }
+    recovering = false;
+    if (/access_token|type=recovery/.test(location.hash)) history.replaceState(null, "", location.pathname);
+    $("pw-new").value = ""; $("pw-again").value = "";
+    toast("새 비밀번호를 저장했습니다");
+    if (pwMode === "change") show("app"); else route();
+  });
+
+  $("forgot-open").addEventListener("click", function () {
+    $("forgot-email").value = $("email").value.trim();
+    $("forgot-error").classList.remove("is-on");
+    $("forgot-form").hidden = false; $("forgot-done").hidden = true;
+    show("forgot-view");
+    $("forgot-email").focus();
+  });
+  $$("[data-back-login]").forEach(function (b) { b.addEventListener("click", function () { show("login-view"); }); });
+
+  $("forgot-form").addEventListener("submit", async function (e) {
+    e.preventDefault();
+    var err = $("forgot-error"), email = $("forgot-email").value.trim();
+    err.classList.remove("is-on");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = "이메일 주소를 정확히 입력해 주세요."; err.classList.add("is-on"); return; }
+    $("forgot-submit").disabled = true;
+    var res = await db.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    $("forgot-submit").disabled = false;
+    if (res.error && res.error.status === 429) {
+      err.textContent = "요청이 많아 잠시 보낼 수 없습니다. 몇 분 후 다시 시도해 주세요.";
+      err.classList.add("is-on");
+      return;
+    }
+    // Same message whether or not the address has an account, so the form cannot be used to probe for staff emails.
+    $("forgot-form").hidden = true; $("forgot-done").hidden = false;
+  });
+
   $("logout").addEventListener("click", async function () {
     await db.auth.signOut();
     rows = []; closed = {};
@@ -507,6 +597,7 @@
     route();
   });
 
-  showTab((location.hash || "").slice(1) === "closed" ? "closed" : "bookings");
+  if (recovering || linkFailed) { state.tab = "bookings"; }   // leave the hash alone until Supabase has read it
+  else showTab((location.hash || "").slice(1) === "closed" ? "closed" : "bookings");
   route();
 })();

@@ -34,6 +34,48 @@
       </div>
       <button type="submit" class="btn btn--primary reserve-submit" id="login-submit">로그인</button>
     </form>
+    <p class="admin-login__alt"><button type="button" class="linkish" id="forgot-open">비밀번호를 잊으셨나요?</button></p>
+  </div>
+</div>
+
+<!-- Forgot password: emails a reset link -->
+<div id="forgot-view" class="center" hidden>
+  <div class="reserve-card admin-login">
+    <h1>비밀번호 재설정</h1>
+    <form id="forgot-form" novalidate>
+      <p class="admin-login__lead">가입하신 이메일 주소를 입력하시면 비밀번호를 다시 설정할 수 있는 링크를 보내드립니다.</p>
+      <div class="form-error" id="forgot-error" role="alert"></div>
+      <div class="field">
+        <label for="forgot-email">이메일</label>
+        <input type="text" id="forgot-email" inputmode="email" autocomplete="username" required>
+      </div>
+      <button type="submit" class="btn btn--primary reserve-submit" id="forgot-submit">재설정 링크 받기</button>
+    </form>
+    <p class="admin-login__done" id="forgot-done" hidden>입력하신 주소가 등록된 계정이면 재설정 링크를 보내드렸습니다.<br>메일함(스팸함 포함)을 확인해 주세요. 링크는 1시간 동안 사용할 수 있습니다.</p>
+    <p class="admin-login__alt"><button type="button" class="linkish" data-back-login>로그인 화면으로</button></p>
+  </div>
+</div>
+
+<!-- Set a new password: first sign-in, reset link, or by choice -->
+<div id="password-view" class="center" hidden>
+  <div class="reserve-card admin-login">
+    <h1 id="pw-title">새 비밀번호 설정</h1>
+    <form id="pw-form" novalidate>
+      <p class="admin-login__lead" id="pw-lead"></p>
+      <div class="form-error" id="pw-error" role="alert"></div>
+      <input type="text" id="pw-user" autocomplete="username" hidden>
+      <div class="field">
+        <label for="pw-new">새 비밀번호</label>
+        <input type="password" id="pw-new" autocomplete="new-password" minlength="8" required>
+        <div class="hint">8자 이상으로 입력해 주세요.</div>
+      </div>
+      <div class="field">
+        <label for="pw-again">새 비밀번호 확인</label>
+        <input type="password" id="pw-again" autocomplete="new-password" required>
+      </div>
+      <button type="submit" class="btn btn--primary reserve-submit" id="pw-submit">비밀번호 저장</button>
+    </form>
+    <p class="admin-login__alt" id="pw-cancel-row" hidden><button type="button" class="linkish" id="pw-cancel">취소</button></p>
   </div>
 </div>
 
@@ -58,6 +100,7 @@
     </nav>
     <div class="bar__user" id="admin-user" hidden>
       <span id="admin-email"></span>
+      <button type="button" class="btn-line" id="change-pw">비밀번호 변경</button>
       <button type="button" class="btn-line" id="logout">로그아웃</button>
     </div>
   </header>
