@@ -181,7 +181,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!data.name) return showError("성함을 입력해 주세요.");
     if (!/^01[0-9]-?\d{3,4}-?\d{4}$/.test(data.phone)) return showError("휴대폰 번호를 정확히 입력해 주세요.");
-    if (data.email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) return showError("이메일 주소를 정확히 입력하시거나, 비워 두세요.");
+    if (!data.email) return showError("이메일 주소를 입력해 주세요. 예약 확정 안내를 이메일로 보내드립니다.");
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(data.email)) return showError("이메일 주소를 정확히 입력해 주세요.");
     if (!data.visit_type) return showError("진료 구분을 선택해 주세요.");
     if (!data.preferred_date || !isOpen(data.preferred_date)) return showError("예약 가능한 희망 날짜를 선택해 주세요.");
     if (!data.preferred_time) return showError("희망 시간대를 선택해 주세요.");
